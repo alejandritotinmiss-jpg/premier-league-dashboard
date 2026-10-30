@@ -1,0 +1,76 @@
+{
+  "validacion_por_temporada": {
+    "2020/21": {
+      "filas": 380,
+      "equipos": 20,
+      "columnas_correctas": true,
+      "celdas_vacias": 0,
+      "partidos_repetidos": 0,
+      "fechas_fuera": 0,
+      "calendario_incompleto": 0,
+      "resultados_incoherentes": 0,
+      "tiros_imposibles": 0
+    },
+    "2021/22": {
+      "filas": 380,
+      "equipos": 20,
+      "columnas_correctas": true,
+      "celdas_vacias": 0,
+      "partidos_repetidos": 0,
+      "fechas_fuera": 0,
+      "calendario_incompleto": 0,
+      "resultados_incoherentes": 0,
+      "tiros_imposibles": 1
+    },
+    "2022/23": {
+      "filas": 380,
+      "equipos": 20,
+      "columnas_correctas": true,
+      "celdas_vacias": 0,
+      "partidos_repetidos": 0,
+      "fechas_fuera": 0,
+      "calendario_incompleto": 0,
+      "resultados_incoherentes": 0,
+      "tiros_imposibles": 0
+    },
+    "2023/24": {
+      "filas": 380,
+      "equipos": 20,
+      "columnas_correctas": true,
+      "celdas_vacias": 0,
+      "partidos_repetidos": 0,
+      "fechas_fuera": 0,
+      "calendario_incompleto": 0,
+      "resultados_incoherentes": 0,
+      "tiros_imposibles": 0
+    },
+    "2024/25": {
+      "filas": 380,
+      "equipos": 20,
+      "columnas_correctas": true,
+      "celdas_vacias": 0,
+      "partidos_repetidos": 0,
+      "fechas_fuera": 0,
+      "calendario_incompleto": 0,
+      "resultados_incoherentes": 0,
+      "tiros_imposibles": 0
+    }
+  },
+  "cambios": [
+    {
+      "indice": 8,
+      "fecha": "2021-08-15",
+      "partido": "Newcastle 2-4 West Ham",
+      "equipo": "West Ham",
+      "condicion": "visitante",
+      "tiros": 8,
+      "tiros_al_arco": 9,
+      "columnas_vaciadas": [
+        "AS",
+        "AST"
+      ],
+      "temporada": "2021/22"
+    }
+  ],
+  "filas_finales": 1900
+}

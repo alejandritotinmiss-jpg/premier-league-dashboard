@@ -1,0 +1,65 @@
+{
+  "fecha_consulta": "2026-10-29",
+  "temporadas": {
+    "2020/21": {
+      "completo": false,
+      "nota": "Datos parciales: solo los 10 máximos goleadores y los 3 máximos asistentes, sin partidos jugados. ESPN no tiene datos de esta temporada.",
+      "goleadores": {
+        "fuente": "Wikipedia (cita a premierleague.com)",
+        "url": "https://en.wikipedia.org/wiki/2020%E2%80%9321_Premier_League"
+      },
+      "asistencias": {
+        "fuente": "Premier League (oficial)",
+        "url": "https://www.premierleague.com/news/2154211"
+      }
+    },
+    "2021/22": {
+      "completo": true,
+      "nota": "",
+      "goleadores": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2021"
+      },
+      "asistencias": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2021"
+      }
+    },
+    "2022/23": {
+      "completo": true,
+      "nota": "",
+      "goleadores": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2022"
+      },
+      "asistencias": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2022"
+      }
+    },
+    "2023/24": {
+      "completo": true,
+      "nota": "Asistencias oficiales de la Premier League (premio Playmaker). ESPN cuenta algunas de forma distinta: por ejemplo, le da 14 a Watkins frente a las 13 oficiales.",
+      "goleadores": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2023"
+      },
+      "asistencias": {
+        "fuente": "Premier League (asistencias) y ESPN (partidos)",
+        "url": "https://www.premierleague.com/en/news/4021251"
+      }
+    },
+    "2024/25": {
+      "completo": true,
+      "nota": "",
+      "goleadores": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2024"
+      },
+      "asistencias": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2024"
+      }
+    }
+  }
+}

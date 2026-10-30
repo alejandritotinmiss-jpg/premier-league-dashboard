@@ -239,4 +239,7 @@ revisó, probó y entiende todo el código entregado.»
 
 ## Equipo
 
-_Nombres de los integrantes._
+- Sergio Tinjaca
+- Santiago Sánchez
+- Simón Chacón
+- Santiago Fonseca

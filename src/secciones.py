@@ -1,4 +1,4 @@
-"""Las seis secciones de análisis agregadas en la versión 3 de la app.
+"""Seis secciones de análisis: comparador, local contra visitante, correlaciones, ranking, récords y sorpresas.
 
 Cada función dibuja una sección. Los cálculos están en otros archivos de src/
 (comparador, correlaciones, records, ranking y sorpresas); aquí solo se muestran.

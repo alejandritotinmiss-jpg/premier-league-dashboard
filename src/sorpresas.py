@@ -164,12 +164,3 @@ def buscar_sorpresas(partidos_temporada, criterio, equipo=None, diferencia_minim
         return resultado, sin_datos
     resultado = resultado.sort_values(["Diferencia", "_fecha"], ascending=[False, True])
     return resultado.drop(columns="_fecha").reset_index(drop=True), sin_datos
-
-
-def resumen_criterios(partidos_temporada):
-    """Cuántos partidos de la temporada cumplen cada criterio."""
-    filas = []
-    for criterio in CRITERIOS:
-        tabla, _ = buscar_sorpresas(partidos_temporada, criterio)
-        filas.append({"Criterio": criterio, "Partidos": len(tabla)})
-    return pd.DataFrame(filas)

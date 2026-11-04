@@ -126,7 +126,7 @@ def test_sorprendeme_muestra_una_curiosidad():
     assert len(vistas) == 2 and vistas[0] != vistas[1]
 
 
-# --- Secciones nuevas (versión 3) ---------------------------------------------
+# --- Comparador, correlaciones, récords, ranking y sorpresas -------------------
 def test_comparador_avisa_si_se_elige_el_mismo_equipo():
     app = iniciar("Comparador de equipos")
     assert len(app.dataframe) == 2                    # tabla de comparación y de local/visitante

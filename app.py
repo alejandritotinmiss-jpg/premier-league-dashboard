@@ -5,7 +5,7 @@ Ejecutar desde la carpeta raíz del proyecto:
 
 La app tiene trece secciones que se eligen en la barra lateral. La lógica está en src/:
     src/tablero.py       datos de cada gráfico según los filtros
-    src/secciones.py     las seis secciones de análisis de la versión 3
+    src/secciones.py     comparador, local vs. visitante, correlaciones, ranking, récords y sorpresas
     src/comparador.py    comparador de equipos y local contra visitante
     src/correlaciones.py matriz de correlación y explicaciones
     src/records.py       récords de las cinco temporadas

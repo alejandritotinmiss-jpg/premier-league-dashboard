@@ -552,7 +552,8 @@ def mostrar_respuesta(mensaje):
     if mensaje.get("grafico"):
         g = mensaje["grafico"]
         st.altair_chart(graficos.grafico_barras_ordenadas(g["datos"], g["etiqueta"], g["valor"], g["valor"],
-                                                          g["titulo"]), use_container_width=True)
+                                                          g["titulo"], nombre_etiqueta=g["etiqueta"]),
+                        use_container_width=True)
     if mensaje.get("tabla") is not None and not mensaje["tabla"].empty:
         st.dataframe(mensaje["tabla"], hide_index=True, use_container_width=True)
     if mensaje.get("fuente"):
@@ -567,8 +568,9 @@ def pagina_asistente():
     modo = ("Además hay un modelo de lenguaje conectado que solo ayuda a interpretar las preguntas que las "
             "reglas no entienden." if interprete else "No usa un modelo de lenguaje externo ni internet.")
     st.caption("Chatbot híbrido: reconoce la intención de la pregunta con reglas y palabras clave y busca la "
-               "respuesta en los datos del proyecto, el calendario y el modelo predictivo. Nunca inventa "
-               f"cifras. {modo} Si no nombras una temporada, usa la de la barra lateral ({temporada}).")
+               "respuesta en los datos del proyecto (partidos, goleadores y asistentes), el calendario y el modelo "
+               f"predictivo. Nunca inventa cifras. {modo} Si no nombras una temporada, usa la de la barra lateral "
+               f"({temporada}).")
 
     if "chat" not in st.session_state:
         st.session_state["chat"] = []
@@ -576,10 +578,11 @@ def pagina_asistente():
 
     st.markdown("**Prueba con un ejemplo:**")
     pregunta = None
-    columnas = st.columns(3)
-    for indice, ejemplo in enumerate(EJEMPLOS_CHAT):
-        if columnas[indice % 3].button(ejemplo, key=f"ejemplo_{indice}", use_container_width=True):
-            pregunta = ejemplo
+    # Una fila de columnas por cada tres ejemplos: así en el celular se ven en orden.
+    for inicio in range(0, len(EJEMPLOS_CHAT), 3):
+        for columna, (indice, ejemplo) in zip(st.columns(3), list(enumerate(EJEMPLOS_CHAT))[inicio:inicio + 3]):
+            if columna.button(ejemplo, key=f"ejemplo_{indice}", use_container_width=True):
+                pregunta = ejemplo
 
     escrita = st.chat_input("Escribe tu pregunta, por ejemplo: ¿qué probabilidades tiene el Arsenal?")
     if escrita:
@@ -588,7 +591,8 @@ def pagina_asistente():
     if pregunta:
         contexto = {"partidos": partidos, "estadisticas": estadisticas, "temporada": temporada,
                     "servicio_modelo": obtener_modelo, "evaluacion": evaluacion_modelo,
-                    "memoria": memoria, "interprete": interprete}
+                    "memoria": memoria, "interprete": interprete,
+                    "jugadores": (goleadores, asistencias, fuentes_jugadores)}
         with st.spinner("Buscando en los datos..."):
             resultado = responder_chat(pregunta, contexto)
         st.session_state["chat"].append({"rol": "user", "texto": pregunta})

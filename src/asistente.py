@@ -39,6 +39,11 @@ EJEMPLOS = [
 ]
 
 
+def plural(cantidad, singular, plural_):
+    """1 -> 'victoria', 2 -> 'victorias'."""
+    return singular if cantidad == 1 else plural_
+
+
 def respuesta(texto, tabla=None, tipo="respuesta"):
     """Empaqueta la respuesta del asistente."""
     return {"tipo": tipo, "texto": texto, "tabla": tabla}
@@ -234,8 +239,8 @@ def responder_equipo(texto, partidos_temporada, temporada, equipo, estadistica):
                          tabla_resumen(mejores), tipo="partidos")
 
     if any(palabra in texto for palabra in ["gano", "victoria", "empat", "perdi", "derrota", "puntos"]):
-        return respuesta(f"En {temporada}, {equipo} ganó **{r['V']}** partidos, empató **{r['E']}** "
-                         f"y perdió **{r['D']}**, para un total de **{r['Puntos']} puntos** "
+        return respuesta(f"En {temporada}, {equipo} ganó **{r['V']}** {plural(r['V'], 'partido', 'partidos')}, "
+                         f"empató **{r['E']}** y perdió **{r['D']}**, para un total de **{r['Puntos']} puntos** "
                          "ganados en el campo.", tipo="equipo")
 
     if estadistica:
@@ -252,8 +257,9 @@ def responder_equipo(texto, partidos_temporada, temporada, equipo, estadistica):
         return respuesta(f"En {temporada}, {equipo} sumó **{r[nombre]} {nombre.lower()}** en "
                          f"{len(tabla)} partidos{nota}.", tipo="equipo")
 
-    return respuesta(f"Resumen de {equipo} en {temporada}: {r['V']} victorias, {r['E']} empates y "
-                     f"{r['D']} derrotas ({r['Puntos']} puntos), con {r['GF']} goles a favor y "
+    return respuesta(f"Resumen de {equipo} en {temporada}: {r['V']} {plural(r['V'], 'victoria', 'victorias')}, "
+                     f"{r['E']} {plural(r['E'], 'empate', 'empates')} y {r['D']} {plural(r['D'], 'derrota', 'derrotas')} "
+                     f"({r['Puntos']} puntos), con {r['GF']} goles a favor y "
                      f"{r['GC']} en contra. Estos fueron sus partidos:", tabla_resumen(tabla), tipo="equipo")
 
 
@@ -281,8 +287,13 @@ def responder_temporada(texto, partidos_temporada, temporada, estadistica):
         clave = {"Goles": "GF", "Tarjetas": "Tarjetas"}.get(nombre, nombre)
         maximo = max(datos[clave] for datos in totales.values())
         lideres = [equipo for equipo, datos in totales.items() if datos[clave] == maximo]
-        verbo = "fue" if len(lideres) == 1 else "fueron"
-        return respuesta(f"El equipo con más {nombre.lower()} en {temporada} {verbo} "
+        en_curso = len(partidos_temporada) < 380
+        if len(lideres) == 1:
+            sujeto, verbo = "El equipo", ("es" if en_curso else "fue")
+        else:
+            sujeto, verbo = "Los equipos", ("son" if en_curso else "fueron")
+        hasta_ahora = " hasta ahora" if en_curso else ""
+        return respuesta(f"{sujeto} con más {nombre.lower()} en {temporada}{hasta_ahora} {verbo} "
                          f"**{' y '.join(lideres)}**, con {maximo}.", tipo="temporada")
 
     nombre, tabla, maximo = partidos_con_mas(partidos_temporada, estadistica)

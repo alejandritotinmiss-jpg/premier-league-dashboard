@@ -86,6 +86,7 @@ GitHub Actions ──► src/actualizar_datos.py (descarga, valida, recalcula y 
 | Estadísticas y secciones | `src/estadisticas.py`, `src/analisis.py`, `src/tablero.py`, `src/comparador.py`, `src/correlaciones.py`, `src/ranking.py`, `src/records.py`, `src/sorpresas.py`, `src/curiosidades.py`, `src/partidos.py`, `src/jugadores.py` |
 | Variables del modelo | `src/variables_modelo.py` |
 | Entrenamiento y predicción | `src/modelo.py` |
+| Quién puede marcar (jugadores) | `src/goleadores_probables.py` |
 | Evaluación | `src/evaluacion.py` |
 | Generar evaluación y predicciones | `src/entrenar_modelo.py` |
 | Calendario | `src/calendario.py` |
@@ -202,10 +203,35 @@ Es un chatbot **híbrido basado en reglas**:
 3. devuelve un resultado estructurado (texto, tabla, tarjetas, barras de probabilidad, gráfico y
    fuente), que Streamlit dibuja según el tipo de pregunta.
 
-Ejemplos: «¿Quién ganó más partidos en 2025/26?», «Compara Arsenal y Liverpool», «¿Cuál es el
-próximo partido del Manchester City?», «¿Qué probabilidades tiene el Chelsea de ganar su
-siguiente encuentro?», «¿Por qué el modelo estima esas probabilidades?», «¿Qué tan confiable es
-el modelo?».
+Responde sobre:
+
+- **la tabla:** líder, campeón y descensos;
+- **resultados:** de un equipo y el historial entre dos equipos en todas las temporadas;
+- **estadísticas:** rankings, comparaciones, ventaja de local y récords;
+- **jugadores:** máximos goleadores y asistentes, y los datos de un jugador;
+- **el calendario**;
+- **las predicciones del modelo** y su confiabilidad.
+
+Ejemplos: «¿Quién ganó la liga 2024/25?», «Manchester United contra Liverpool», «¿Quién es el
+máximo goleador?», «asistencias de Bruno Fernandes», «¿Qué probabilidades tiene el Chelsea de
+ganar su siguiente encuentro?», «¿Por qué?», «¿Quién crees que meta gol en el próximo partido del
+City?».
+
+**¿Quién puede marcar?** (`src/goleadores_probables.py`). Es una estimación sencilla que usa
+solo estadísticas. Los nombres no influyen: una prueba comprueba que, si se cambia el nombre de
+los jugadores, las probabilidades no cambian.
+
+1. Goles por partido del jugador: sus goles entre sus partidos jugados, sumando la temporada
+   actual y la anterior.
+2. Ajuste por rival: goles que recibe el rival por partido, comparados con el promedio de la
+   liga. Se mezclan con 10 partidos promedio para no exagerar cuando hay pocos partidos.
+3. Probabilidad de marcar al menos un gol si juega (modelo de Poisson):
+   1 − e^(−goles por partido × ajuste).
+
+Solo puede considerar a los jugadores que aparecen en las tablas de máximos goleadores (unos 10
+a 16 por temporada): si un equipo no tiene ninguno, lo dice en lugar de inventar. No conoce
+alineaciones, lesiones ni penales. A diferencia del modelo de resultados, no se puede validar
+con partidos pasados, porque no hay datos de goles de cada jugador partido a partido.
 
 - **Nunca inventa cifras.** Las probabilidades son las mismas de `predict_proba()`, y una prueba
   lo comprueba. Si falta información, lo dice: por ejemplo, un equipo que no juega la temporada,
@@ -360,7 +386,9 @@ Las pruebas comprueban, entre otras cosas:
   Un partido lejano en el calendario se estima con los datos de hoy.
 - Los puntos son los ganados en el campo: no incluyen las sanciones de 2023/24, que la
   aplicación muestra aparte.
-- Los goleadores y asistentes de la temporada en curso no se actualizan solos.
+- Los goleadores y asistentes de la temporada en curso no se actualizan solos, y solo están los
+  primeros de cada temporada. Por eso la estimación de quién puede marcar solo considera a esos
+  jugadores.
 
 ## Explicación breve para la sustentación
 
@@ -373,7 +401,7 @@ Las pruebas comprueban, entre otras cosas:
 - **Aprendizaje automático supervisado:** cada partido jugado es un ejemplo. Las variables son
   lo que se sabía de los equipos antes del partido, y la etiqueta es el resultado. Se evalúa
   entrenando con el pasado y probando con el futuro, como pasaría en la realidad.
-- **Software:** el código está separado en módulos, hay 160 pruebas automáticas, se usa
+- **Software:** el código está separado en módulos, hay 169 pruebas automáticas, se usa
   caché y la integración continúa con GitHub Actions.
 - **Qué no es:** el chatbot no es inteligencia artificial generativa. Usa reglas, consultas a
   los datos y un modelo de aprendizaje supervisado. El modelo de lenguaje es opcional y solo

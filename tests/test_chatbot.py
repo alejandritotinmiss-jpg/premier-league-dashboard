@@ -1,11 +1,14 @@
 """Pruebas del chatbot: entiende las preguntas, no inventa cifras y funciona sin servicios externos."""
 
+import math
+
 import pandas as pd
 import pytest
 
 from src import calendario as cal
-from src import entrenar_modelo
+from src import entrenar_modelo, goleadores_probables
 from src.chatbot import EJEMPLOS_CHAT, responder_chat, temporada_mencionada
+from src.jugadores import cargar_jugadores
 from src.interprete_llm import crear_interprete, leer_clave, pregunta_desde_json
 from src.modelo import CLASES, predecir_partido
 from src.preparar_datos import CARPETA_PROCESADOS
@@ -45,11 +48,13 @@ def test_los_ejemplos_se_entienden_y_tienen_la_misma_estructura(base):
         assert set(resultado) == CLAVES
         tipos.append(resultado["tipo"])
     if hay_partidos_pendientes(base):
-        assert tipos == ["ranking", "comparacion", "calendario", "prediccion", "explicacion", "confiabilidad"]
+        assert tipos == ["ranking", "comparacion", "calendario", "prediccion", "explicacion", "confiabilidad",
+                         "goleador_probable", "jugadores", "partidos"]
     else:
         # Al terminar la temporada no quedan partidos que predecir: el chatbot debe decirlo, no inventar.
-        assert tipos[:2] == ["ranking", "comparacion"] and tipos[-1] == "confiabilidad"
-        assert "prediccion" not in tipos
+        assert tipos[:2] == ["ranking", "comparacion"] and tipos[5] == "confiabilidad"
+        assert "prediccion" not in tipos and "goleador_probable" not in tipos
+        assert tipos[-2:] == ["jugadores", "partidos"]
 
 
 def test_estadisticas_salen_de_los_datos(base):
@@ -205,3 +210,106 @@ def test_el_modelo_de_lenguaje_no_puede_inventar(base):
 
     interprete = crear_interprete("clave-de-prueba", llamar=api_caida)
     assert responder_chat("blablabla", contexto_nuevo(base, interprete=interprete))["tipo"] == "ayuda"
+
+
+# --- Jugadores: quién puede marcar, goleadores y asistentes ---------------------
+def test_goleador_probable_solo_usa_estadisticas(base):
+    contexto = contexto_nuevo(base, temporada="2026/27")
+    resultado = responder_chat("quien crees que meta gol en el manchester city en su proximo partido", contexto)
+    if not hay_partidos_pendientes(base):
+        assert resultado["tipo"] == "sin_datos"
+        return
+    assert resultado["tipo"] == "goleador_probable"
+    tabla = resultado["tabla"]
+    assert set(tabla["Equipo"]) == {"Man City"} and len(tabla) >= 1
+    # Cada probabilidad se recalcula a mano con los CSV: 1 - e^(-goles por partido x ajuste por rival).
+    goleadores, _, _ = cargar_jugadores()
+    rival = tabla["Rival"].iloc[0]
+    temporadas = sorted(base["estadisticas"]["Temporada"].unique())
+    usadas = [temporadas[-1], temporadas[-2]]
+    ajuste = goleadores_probables.factor_rival(base["estadisticas"], temporadas[-1], rival)
+    for _, fila in tabla.iterrows():
+        filas = goleadores[(goleadores["Jugador"] == fila["Jugador"]) & goleadores["Temporada"].isin(usadas)]
+        esperado = 1 - math.exp(-(filas["Goles"].sum() / filas["Partidos"].sum()) * ajuste)
+        assert fila["Probabilidad de marcar"] == f"{100 * esperado:.1f}".replace(".", ",") + " %"
+    valores = resultado["grafico"]["datos"]["Probabilidad (%)"]
+    assert valores.is_monotonic_decreasing                       # de mayor a menor
+    assert "no una certeza" in resultado["fuente"] and "apuestas" in resultado["fuente"]
+
+
+def test_el_nombre_del_jugador_no_cambia_la_estimacion(base):
+    # Mismos números con otro nombre -> misma probabilidad: no hay preferencia por jugadores conocidos.
+    goleadores, _, _ = cargar_jugadores()
+    temporada = sorted(base["estadisticas"]["Temporada"].unique())[-1]
+    original, _ = goleadores_probables.estimar(goleadores, base["estadisticas"], temporada, "Man City", "Fulham")
+    renombrados = goleadores.copy()
+    codigos = {nombre: f"Jugador {i}" for i, nombre in enumerate(sorted(set(goleadores["Jugador"])))}
+    renombrados["Jugador"] = renombrados["Jugador"].map(codigos)      # mismo código para el mismo jugador
+    sin_nombres, _ = goleadores_probables.estimar(renombrados, base["estadisticas"], temporada, "Man City", "Fulham")
+    assert sorted(original["Probabilidad de marcar"]) == pytest.approx(sorted(sin_nombres["Probabilidad de marcar"]))
+
+
+def test_sin_jugadores_en_las_tablas_no_inventa_nombres(base):
+    contexto = contexto_nuevo(base, temporada="2026/27")
+    resultado = responder_chat("¿Quién podría marcar para el Fulham?", contexto)
+    if hay_partidos_pendientes(base):
+        assert resultado["tipo"] == "sin_datos" and "inventar" in resultado["texto"]
+
+
+def test_factor_rival_y_poisson():
+    assert goleadores_probables.probabilidad_de_marcar(0) == 0
+    assert goleadores_probables.probabilidad_de_marcar(1) == pytest.approx(1 - math.exp(-1))
+    estadisticas = pd.DataFrame({"Temporada": ["T"] * 2, "Condicion": ["Total"] * 2, "Equipo": ["A", "B"],
+                                 "PJ": [10, 10], "GolesContra": [10, 30]})
+    # Media de la liga: 2 goles por partido. B recibe 3, mezclado con 10 partidos promedio: (30 + 20) / 20 = 2,5.
+    assert goleadores_probables.factor_rival(estadisticas, "T", "B") == pytest.approx(2.5 / 2)
+    assert goleadores_probables.factor_rival(estadisticas, "T", "Equipo que no existe") == 1.0
+
+
+def test_maximos_goleadores_y_asistentes(base):
+    contexto = contexto_nuevo(base, temporada="2021/22")
+    resultado = responder_chat("máximo goleador 2025/26", contexto)
+    assert resultado["tipo"] == "jugadores" and "**Erling Haaland**" in resultado["texto"] and "**27 goles**" in resultado["texto"]
+    resultado = responder_chat("asistencias 2023/24", contexto)
+    assert "**Ollie Watkins**" in resultado["texto"] and "**13 asistencias**" in resultado["texto"]
+    resultado = responder_chat("asistencias de Bruno Fernandes", contexto)
+    assert "21 asistencias" in resultado["texto"] and "2025/26" in resultado["texto"]
+    resultado = responder_chat("¿Qué equipo marcó más goles en 2025/26?", contexto)
+    assert resultado["tipo"] == "ranking"                       # con "equipo" se habla de equipos
+
+
+def test_historial_entre_equipos_de_todas_las_temporadas(base):
+    contexto = contexto_nuevo(base, temporada="2026/27")
+    resultado = responder_chat("Manchester United contra Liverpool", contexto)
+    partidos = base["partidos"]
+    entre = partidos[((partidos["HomeTeam"] == "Man United") & (partidos["AwayTeam"] == "Liverpool")) |
+                     ((partidos["HomeTeam"] == "Liverpool") & (partidos["AwayTeam"] == "Man United"))]
+    assert resultado["tipo"] == "partidos" and len(resultado["tabla"]) == len(entre)
+    assert f"**{len(entre)}** veces" in resultado["texto"]
+
+
+def test_campeon_descenso_partidos_y_ventaja_de_local(base):
+    contexto = contexto_nuevo(base, temporada="2026/27")
+    assert "**Liverpool** fue campeón" in responder_chat("¿Quién ganó la liga 2024/25?", contexto)["texto"]
+    descenso = responder_chat("¿quién descendió en 2025/26?", contexto)
+    assert "West Ham, Burnley y Wolves" in descenso["texto"]
+    jugados = responder_chat("¿Cuántos partidos se han jugado en 2025/26?", contexto)
+    assert "**380** de 380" in jugados["texto"] and f"**{len(base['partidos']):,}**".replace(",", ".") in jugados["texto"]
+    sin_ventaja = responder_chat("ventaja de local en 2020/21", contexto)
+    assert "**144**" in sin_ventaja["texto"] and "**153**" in sin_ventaja["texto"] and "no hubo ventaja" in sin_ventaja["texto"]
+
+
+def test_saludos_y_ayuda(base):
+    contexto = contexto_nuevo(base)
+    assert "Hola" in responder_chat("hola", contexto)["texto"]
+    assert responder_chat("hola, ¿quién va primero?", contexto)["tipo"] == "clasificacion"
+    assert responder_chat("gracias", contexto)["tipo"] == "ayuda"
+    assert "Jugadores" in responder_chat("¿qué puedes hacer?", contexto)["texto"]
+
+
+def test_redaccion_en_singular_y_temporada_en_curso(base):
+    contexto = contexto_nuevo(base, temporada="2026/27")
+    resumen = responder_chat("Man Utd", contexto)["texto"]
+    assert " 1 victorias" not in resumen and " 1 derrotas" not in resumen
+    ranking = responder_chat("¿Quién perdió más partidos?", contexto)["texto"]
+    assert " fue " not in ranking or "hasta ahora" not in ranking

@@ -1,28 +1,38 @@
 """Prueba de la aplicación con la herramienta oficial de Streamlit (AppTest).
 
-Ejecuta app.py sin abrir el navegador, recorre las trece secciones, cambia los
+Ejecuta app.py sin abrir el navegador, recorre las catorce secciones, cambia los
 filtros y comprueba que la página no da errores y que el contenido cambia.
 Requiere tener Streamlit instalado (pip install -r requirements.txt).
 """
 
+import pandas as pd
 import pytest
 
 pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
+from src.preparar_datos import CARPETA_PROCESADOS  # noqa: E402
+
 RUTA_APP = "../app.py"  # relativa a esta carpeta (tests/)
 SECCIONES = ["Inicio", "Clasificación", "Análisis", "Comparador de equipos", "Local vs. visitante",
              "Relaciones y correlaciones", "Ranking personalizado", "Récords históricos",
-             "Goleadores y Asistencias", "Partidos", "Detector de sorpresas", "Asistente IA", "Curiosidades"]
+             "Goleadores y Asistencias", "Partidos", "Detector de sorpresas", "Analizador predictivo",
+             "Asistente IA", "Curiosidades"]
+# Las temporadas salen de los datos (no de una lista fija): así la prueba sigue valiendo
+# cuando la actualización automática agrega una temporada nueva.
+TEMPORADAS = sorted(pd.read_csv(CARPETA_PROCESADOS / "partidos_limpios.csv", usecols=["Temporada"])["Temporada"].unique())
 
 
-def iniciar(seccion="Inicio"):
-    """Ejecuta la app, abre una sección y comprueba que no haya errores."""
-    app = AppTest.from_file(RUTA_APP, default_timeout=60)
+def iniciar(seccion="Inicio", temporada=None):
+    """Ejecuta la app, abre una sección (y una temporada) y comprueba que no haya errores."""
+    app = AppTest.from_file(RUTA_APP, default_timeout=120)
     app.run()
     assert not app.exception, app.exception
     if seccion != "Inicio":
         app.sidebar.radio[0].set_value(seccion).run()
+        assert not app.exception, app.exception
+    if temporada:
+        app.sidebar.selectbox[0].select(temporada).run()
         assert not app.exception, app.exception
     return app
 
@@ -35,10 +45,12 @@ def boton(app, etiqueta):
     return next(b for b in app.button if b.label == etiqueta)
 
 
-def test_el_menu_tiene_las_trece_secciones_y_la_temporada():
+def test_el_menu_tiene_las_catorce_secciones_y_las_temporadas():
     app = iniciar()
     assert list(app.sidebar.radio[0].options) == SECCIONES
-    assert app.sidebar.selectbox[0].value == "2024/25"
+    assert list(app.sidebar.selectbox[0].options) == TEMPORADAS
+    assert TEMPORADAS[:7] == ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25", "2025/26", "2026/27"]
+    assert app.sidebar.selectbox[0].value == TEMPORADAS[-1]          # por defecto, la más reciente
     assert "PREMIER LEAGUE DATA ANALYTICS" in textos(app)
     assert "no oficial" in textos(app).lower() or "No es un producto oficial" in textos(app)
 
@@ -46,13 +58,13 @@ def test_el_menu_tiene_las_trece_secciones_y_la_temporada():
 @pytest.mark.parametrize("seccion", SECCIONES)
 def test_cada_seccion_abre_sin_errores_en_todas_las_temporadas(seccion):
     app = iniciar(seccion)
-    for temporada in ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25"]:
+    for temporada in TEMPORADAS:
         app.sidebar.selectbox[0].select(temporada).run()
         assert not app.exception, (seccion, temporada, app.exception)
 
 
 def test_clasificacion_cambia_con_la_temporada_y_la_condicion():
-    app = iniciar("Clasificación")
+    app = iniciar("Clasificación", "2024/25")
     assert app.sidebar.multiselect[0].value == ["Liverpool", "Arsenal", "Man City"]
     app.sidebar.selectbox[0].select("2023/24").run()
     assert not app.exception
@@ -85,7 +97,7 @@ def test_cambiar_metrica_y_alcance_actualiza_la_correlacion():
 
 
 def test_goleadores_muestra_lideres_y_aviso_de_datos_parciales():
-    app = iniciar("Goleadores y Asistencias")
+    app = iniciar("Goleadores y Asistencias", "2024/25")
     assert "Mohamed Salah" in textos(app)           # 2024/25: 29 goles y 18 asistencias
     app.sidebar.selectbox[0].select("2020/21").run()
     assert not app.exception
@@ -95,7 +107,7 @@ def test_goleadores_muestra_lideres_y_aviso_de_datos_parciales():
 
 
 def test_partidos_filtra_un_enfrentamiento():
-    app = iniciar("Partidos")
+    app = iniciar("Partidos", "2024/25")
     assert len(app.dataframe[0].value) == 380
     app.main.selectbox[0].select("Liverpool").run()   # Equipo
     app.main.selectbox[1].select("Arsenal").run()     # Rival
@@ -104,20 +116,22 @@ def test_partidos_filtra_un_enfrentamiento():
 
 
 def test_asistente_responde_y_guarda_el_historial():
-    app = iniciar("Asistente IA")
+    app = iniciar("Asistente IA", "2024/25")
     app.chat_input[0].set_value("¿Cuánto quedó el Arsenal contra el Liverpool?").run()
     assert not app.exception
     assert "2-2" in textos(app)
-    boton(app, "¿Cuántos partidos ganó el Chelsea?").click().run()
+    boton(app, "¿Quién ganó más partidos en 2025/26?").click().run()
     assert not app.exception
     assert len(app.session_state["chat"]) == 4
+    assert app.session_state["chat"][-1]["tipo"] == "ranking" and "**Arsenal**" in textos(app)
+    assert len(app.dataframe) >= 1                          # la respuesta incluye una tabla
     boton(app, "Borrar conversación").click().run()
     assert not app.exception
     assert app.session_state["chat"] == []
 
 
 def test_sorprendeme_muestra_una_curiosidad():
-    app = iniciar("Curiosidades")
+    app = iniciar("Curiosidades", "2024/25")
     boton(app, "SORPRÉNDEME").click().run()
     assert not app.exception
     assert len(app.session_state["curiosidades_vistas"]["2024/25"]) == 1
@@ -155,7 +169,10 @@ def test_local_visitante_muestra_conclusion_y_aviso_de_west_ham():
 
 def test_correlaciones_cambian_con_el_alcance_y_las_variables():
     app = iniciar("Relaciones y correlaciones")
-    assert "n = 100" in app.metric[0].delta                             # cinco temporadas
+    # Todas las temporadas terminadas: 20 equipos por temporada (la temporada en curso no entra).
+    partidos = pd.read_csv(CARPETA_PROCESADOS / "partidos_limpios.csv", usecols=["Temporada"])
+    terminadas = int((partidos["Temporada"].value_counts() == 380).sum())
+    assert f"n = {20 * terminadas}" in app.metric[0].delta
     # El valor de r puede coincidir por casualidad (tiros y goles: 0,83 en los dos casos),
     # así que se comprueba el número de observaciones.
     app.main.radio[0].set_value(app.main.radio[0].options[1]).run()    # solo la temporada elegida
@@ -170,7 +187,7 @@ def test_correlaciones_cambian_con_el_alcance_y_las_variables():
 def test_records_de_todos_los_tipos():
     app = iniciar("Récords históricos")
     assert "93" in textos(app)                        # Man City 2021/22, récord de puntos
-    for tipo in ["Acumulado de las cinco temporadas", "Récords de partidos"]:
+    for tipo in ["Acumulado de todas las temporadas", "Récords de partidos"]:
         app.main.radio[0].set_value(tipo).run()
         assert not app.exception
     assert "Man United 9-0 Southampton" in textos(app)
@@ -192,3 +209,34 @@ def test_detector_de_sorpresas_filtra_y_avisa_si_no_hay_partidos():
     assert len(app.dataframe[0].value) < todos
     app.main.slider[0].set_value(25).run()
     assert not app.exception
+
+
+# --- Analizador predictivo y chatbot con el modelo ------------------------------
+def test_analizador_predictivo_muestra_tres_probabilidades_y_la_calidad():
+    app = iniciar("Analizador predictivo")
+    assert any("no son certezas" in aviso.value or "apuestas" in aviso.value for aviso in app.warning)
+    app.main.radio[0].set_value("Simulación hipotética").run()
+    assert not app.exception
+    app.main.selectbox[0].select("Arsenal").run()
+    app.main.selectbox[1].select("Liverpool").run()
+    assert not app.exception
+    texto = textos(app)
+    assert "Gana Arsenal" in texto and "Empate" in texto and "Gana Liverpool" in texto
+    assert "suman 100 %" in " ".join(c.value for c in app.caption)
+    assert any("Simulación hipotética" in i.value for i in app.info)
+    # Panel de calidad: métricas reales de la evaluación guardada.
+    etiquetas = [str(m.label).lower() for m in app.metric]
+    assert any("accuracy" in e for e in etiquetas) and any("log loss" in e for e in etiquetas)
+    app.main.selectbox[1].select("Arsenal").run()               # mismo equipo
+    assert any("dos equipos diferentes" in aviso.value for aviso in app.warning)
+
+
+def test_chatbot_da_probabilidades_con_fuente_y_aviso():
+    app = iniciar("Asistente IA")
+    app.chat_input[0].set_value("probabilidades Arsenal vs Liverpool").run()
+    assert not app.exception
+    respuesta = app.session_state["chat"][-1]
+    assert respuesta["tipo"] == "prediccion"
+    p = respuesta["probabilidades"]
+    assert abs(p["H"] + p["D"] + p["A"] - 1) < 1e-9
+    assert any("apuestas" in c.value for c in app.caption)

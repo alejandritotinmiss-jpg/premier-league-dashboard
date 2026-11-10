@@ -17,11 +17,31 @@ def tablas():
     return resultado
 
 
+# Temporadas terminadas (380 partidos). La temporada en curso cambia con cada actualización
+# automática, así que de ella solo se comprueban propiedades que siempre deben cumplirse.
+COMPLETAS = ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25", "2025/26"]
+
+
 def test_tamanos(tablas):
-    assert tablas["partidos_limpios"].shape == (1900, 22)
-    assert (tablas["partidos_limpios"]["Temporada"].value_counts() == 380).all()
-    assert len(tablas["equipo_partido"]) == 3800
-    assert len(tablas["estadisticas_equipo_temporada"]) == 300
+    partidos = tablas["partidos_limpios"]
+    por_temporada = partidos["Temporada"].value_counts()
+    assert (por_temporada[COMPLETAS] == 380).all()
+    en_curso = por_temporada.drop(COMPLETAS)
+    assert len(en_curso) <= 1 and (en_curso <= 380).all()      # como mucho una temporada en curso
+    assert partidos.shape == (380 * len(COMPLETAS) + int(en_curso.sum()), 22)
+    assert len(tablas["equipo_partido"]) == 2 * len(partidos)
+    assert len(tablas["estadisticas_equipo_temporada"]) == 60 * por_temporada.size   # 20 equipos x 3 condiciones
+
+
+def test_temporadas_descubiertas_en_orden_y_sin_duplicados(tablas):
+    partidos = tablas["partidos_limpios"]
+    temporadas = sorted(partidos["Temporada"].unique())
+    assert temporadas[:len(COMPLETAS)] == COMPLETAS
+    assert not partidos.duplicated(["Temporada", "HomeTeam", "AwayTeam"]).any()
+    assert partidos["Date"].notna().all()
+    # El resultado FTR siempre coincide con los goles.
+    esperado = partidos.apply(lambda f: "H" if f["FTHG"] > f["FTAG"] else ("A" if f["FTHG"] < f["FTAG"] else "D"), axis=1)
+    assert (esperado == partidos["FTR"]).all()
 
 
 def test_cada_partido_en_su_temporada(tablas):
@@ -52,7 +72,8 @@ def test_puntos_y_goles_coherentes(tablas):
 def test_38_partidos_por_equipo(tablas):
     registros = tablas["equipo_partido"]
     conteo = registros.groupby(["Temporada", "Equipo", "Condicion"]).size()
-    assert (conteo == 19).all()
+    assert (conteo[conteo.index.get_level_values("Temporada").isin(COMPLETAS)] == 19).all()
+    assert conteo.between(1, 19).all()            # en la temporada en curso, entre 1 y 19
     assert registros["NumeroPartido"].max() == 38
 
 
@@ -96,6 +117,24 @@ def test_clasificacion_coincide_con_la_oficial(tablas, temporada):
         calculado = (fila["V"], fila["E"], fila["D"], fila["GolesFavor"], fila["GolesContra"])
         assert calculado == (v, e, d, gf, gc), equipo
         assert fila["Puntos"] - sancion == puntos_oficiales, equipo
+
+
+def test_clasificacion_2025_26_coincide_con_la_tabla_oficial(tablas):
+    # Tabla final de NBC Sports (V, E, D y puntos), consultada el 10/11/2026.
+    oficial = {
+        "Arsenal": (26, 7, 5, 85), "Man City": (23, 9, 6, 78), "Man United": (20, 11, 7, 71),
+        "Aston Villa": (19, 8, 11, 65), "Liverpool": (17, 9, 12, 60), "Bournemouth": (13, 18, 7, 57),
+        "Sunderland": (14, 12, 12, 54), "Brighton": (14, 11, 13, 53), "Brentford": (14, 11, 13, 53),
+        "Chelsea": (14, 10, 14, 52), "Fulham": (15, 7, 16, 52), "Newcastle": (14, 7, 17, 49),
+        "Everton": (13, 10, 15, 49), "Leeds": (11, 14, 13, 47), "Crystal Palace": (11, 12, 15, 45),
+        "Nott'm Forest": (11, 11, 16, 44), "Tottenham": (10, 11, 17, 41), "West Ham": (10, 9, 19, 39),
+        "Burnley": (4, 10, 24, 22), "Wolves": (3, 11, 24, 20),
+    }
+    calculada = tablas["clasificacion"]
+    calculada = calculada[calculada["Temporada"] == "2025/26"]
+    assert calculada["Equipo"].tolist() == list(oficial)
+    for _, fila in calculada.iterrows():
+        assert (fila["V"], fila["E"], fila["D"], fila["Puntos"]) == oficial[fila["Equipo"]], fila["Equipo"]
 
 
 def test_orden_2024_25_igual_al_oficial(tablas):

@@ -1,4 +1,4 @@
-"""Récords de las cinco temporadas: de una sola temporada, acumulados y de partidos."""
+"""Récords de todas las temporadas: de una sola temporada, acumulados y de partidos."""
 
 import pandas as pd
 
@@ -30,7 +30,7 @@ def poner_posiciones(tabla, columna, menor_es_mejor):
 
 
 def ranking_una_temporada(estadisticas, columna, menor_es_mejor, temporadas=None):
-    """Récords de una sola temporada: compara los 100 equipo-temporada (o las temporadas elegidas)."""
+    """Récords de una sola temporada: compara todos los equipo-temporada (o las temporadas elegidas)."""
     tabla = estadisticas[estadisticas["Condicion"] == "Total"]
     if temporadas is not None:
         tabla = tabla[tabla["Temporada"].isin(temporadas)]
@@ -40,17 +40,17 @@ def ranking_una_temporada(estadisticas, columna, menor_es_mejor, temporadas=None
 
 
 def ranking_acumulado(estadisticas, columna, menor_es_mejor):
-    """Suma de las cinco temporadas por equipo.
+    """Suma de todas las temporadas por equipo.
 
     Los equipos no jugaron el mismo número de temporadas. Para "menos goles recibidos"
-    solo se comparan los que jugaron las cinco; si no, ganaría quien jugó menos.
+    solo se comparan los que jugaron todas; si no, ganaría quien jugó menos.
     """
     tabla = estadisticas[estadisticas["Condicion"] == "Total"]
     resumen = tabla.groupby("Equipo").agg(Temporadas=("Temporada", "count"), Valor=(columna, "sum"))
     resumen = resumen.reset_index().rename(columns={"Valor": columna})
     resumen[columna] = resumen[columna].astype(int)
     if menor_es_mejor:
-        resumen = resumen[resumen["Temporadas"] == 5]
+        resumen = resumen[resumen["Temporadas"] == tabla["Temporada"].nunique()]
     return poner_posiciones(resumen, columna, menor_es_mejor)
 
 
@@ -66,7 +66,7 @@ def lideres_por_temporada(estadisticas, columna, menor_es_mejor):
 
 
 def records_de_partidos(partidos):
-    """Los cuatro récords de partidos de las cinco temporadas, cada uno con título y texto."""
+    """Los cuatro récords de partidos de todas las temporadas, cada uno con título y texto."""
     records = []
 
     tabla, goles = partido_maximo(partidos, "FTHG", "FTAG")
@@ -96,7 +96,7 @@ def records_de_partidos(partidos):
 
 
 def resultados_mas_repetidos(partidos, cantidad=8):
-    """Los resultados más frecuentes de las cinco temporadas (sin importar quién ganó)."""
+    """Los resultados más frecuentes de todas las temporadas (sin importar quién ganó)."""
     resultados = [f"{max(a, b)}-{min(a, b)}" for a, b in zip(partidos["FTHG"], partidos["FTAG"])]
     conteo = pd.Series(resultados).value_counts().head(cantidad)
     return pd.DataFrame({"Resultado": conteo.index, "Partidos": conteo.values})

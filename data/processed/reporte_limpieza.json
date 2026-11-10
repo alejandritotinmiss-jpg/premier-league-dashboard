@@ -2,56 +2,99 @@
   "validacion_por_temporada": {
     "2020/21": {
       "filas": 380,
+      "completa": true,
       "equipos": 20,
       "columnas_correctas": true,
       "celdas_vacias": 0,
       "partidos_repetidos": 0,
       "fechas_fuera": 0,
       "calendario_incompleto": 0,
+      "equipos_con_partidos_de_mas": 0,
+      "equipos_sin_local_o_visitante": 0,
       "resultados_incoherentes": 0,
       "tiros_imposibles": 0
     },
     "2021/22": {
       "filas": 380,
+      "completa": true,
       "equipos": 20,
       "columnas_correctas": true,
       "celdas_vacias": 0,
       "partidos_repetidos": 0,
       "fechas_fuera": 0,
       "calendario_incompleto": 0,
+      "equipos_con_partidos_de_mas": 0,
+      "equipos_sin_local_o_visitante": 0,
       "resultados_incoherentes": 0,
       "tiros_imposibles": 1
     },
     "2022/23": {
       "filas": 380,
+      "completa": true,
       "equipos": 20,
       "columnas_correctas": true,
       "celdas_vacias": 0,
       "partidos_repetidos": 0,
       "fechas_fuera": 0,
       "calendario_incompleto": 0,
+      "equipos_con_partidos_de_mas": 0,
+      "equipos_sin_local_o_visitante": 0,
       "resultados_incoherentes": 0,
       "tiros_imposibles": 0
     },
     "2023/24": {
       "filas": 380,
+      "completa": true,
       "equipos": 20,
       "columnas_correctas": true,
       "celdas_vacias": 0,
       "partidos_repetidos": 0,
       "fechas_fuera": 0,
       "calendario_incompleto": 0,
+      "equipos_con_partidos_de_mas": 0,
+      "equipos_sin_local_o_visitante": 0,
       "resultados_incoherentes": 0,
       "tiros_imposibles": 0
     },
     "2024/25": {
       "filas": 380,
+      "completa": true,
       "equipos": 20,
       "columnas_correctas": true,
       "celdas_vacias": 0,
       "partidos_repetidos": 0,
       "fechas_fuera": 0,
       "calendario_incompleto": 0,
+      "equipos_con_partidos_de_mas": 0,
+      "equipos_sin_local_o_visitante": 0,
+      "resultados_incoherentes": 0,
+      "tiros_imposibles": 0
+    },
+    "2025/26": {
+      "filas": 380,
+      "completa": true,
+      "equipos": 20,
+      "columnas_correctas": true,
+      "celdas_vacias": 0,
+      "partidos_repetidos": 0,
+      "fechas_fuera": 0,
+      "calendario_incompleto": 0,
+      "equipos_con_partidos_de_mas": 0,
+      "equipos_sin_local_o_visitante": 0,
+      "resultados_incoherentes": 0,
+      "tiros_imposibles": 0
+    },
+    "2026/27": {
+      "filas": 100,
+      "completa": false,
+      "equipos": 20,
+      "columnas_correctas": true,
+      "celdas_vacias": 0,
+      "partidos_repetidos": 0,
+      "fechas_fuera": 0,
+      "calendario_incompleto": 20,
+      "equipos_con_partidos_de_mas": 0,
+      "equipos_sin_local_o_visitante": 0,
       "resultados_incoherentes": 0,
       "tiros_imposibles": 0
     }
@@ -72,5 +115,6 @@
       "temporada": "2021/22"
     }
   ],
-  "filas_finales": 1900
+  "filas_finales": 2380,
+  "fecha_ultimo_partido": "2026-11-08"
 }

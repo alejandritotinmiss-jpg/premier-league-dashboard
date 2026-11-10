@@ -1,0 +1,65 @@
+# Actualiza los resultados de la temporada en curso, recalcula las estadísticas y el
+# modelo, ejecuta las pruebas y publica los cambios solo si todo sale bien.
+name: Actualizar datos
+
+on:
+  schedule:
+    # Horas en UTC. Los partidos se juegan sobre todo entre las 11:30 y las 22:00 UTC;
+    # la fuente suele publicar los resultados unas horas después.
+    - cron: "17 6,12,18,23 * * *"
+  workflow_dispatch:        # permite ejecutarlo a mano desde la pestaña Actions
+
+# Permiso mínimo: solo escribir en el contenido del repositorio (para el commit de datos).
+permissions:
+  contents: write
+
+# Si una ejecución sigue en marcha, la siguiente espera: nunca hay dos a la vez.
+concurrency:
+  group: actualizar-datos
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar las librerías
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Descargar, validar y recalcular
+        id: actualizar
+        run: python -m src.actualizar_datos
+
+      - name: Ejecutar las pruebas
+        if: steps.actualizar.outputs.cambios == 'true'
+        run: python -m pytest tests -q
+
+      - name: Publicar los cambios
+        if: steps.actualizar.outputs.cambios == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "No hay cambios que publicar."
+          else
+            git commit -m "Actualizar datos: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
+
+      - name: Resumen
+        if: always()
+        run: |
+          echo "Cambios: ${{ steps.actualizar.outputs.cambios || 'no (o hubo un error)' }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f data/actualizacion.json ]; then cat data/actualizacion.json >> "$GITHUB_STEP_SUMMARY"; fi

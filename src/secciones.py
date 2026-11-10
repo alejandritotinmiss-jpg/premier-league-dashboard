@@ -11,7 +11,8 @@ from src.analisis import correlacion, fuerza
 from src.equipos import nombre_completo
 from src.estilos import CONFIG_INSIGNIA, con_insignia, encabezado, tarjeta
 from src.partidos import tabla_resumen
-from src.tablero import equipos_de_temporada, equipos_por_defecto, recta_tendencia
+from src.tablero import (equipos_de_temporada, equipos_por_defecto, esta_en_curso, recta_tendencia,
+                         solo_completas, temporadas_completas, texto_temporadas_completas)
 
 AVISO_TIROS_WEST_HAM = ("A West Ham le falta el dato de tiros y tiros al arco de un partido de 2021/22 "
                         "(Newcastle 2-4 West Ham, 15/08/2021), porque el dato original era imposible. "
@@ -46,7 +47,7 @@ def pagina_comparador(estadisticas, temporada):
     equipo_a = columna_a.selectbox("Primer equipo", equipos, index=equipos.index(primeros[0]))
     equipo_b = columna_b.selectbox("Segundo equipo", equipos, index=equipos.index(primeros[1]))
     condicion = columna_c.radio("Partidos que se comparan", ["Total", "Local", "Visitante"], horizontal=True,
-                                help="Total: los 38 partidos. Local: los 19 en casa. Visitante: los 19 fuera.")
+                                help="Total: todos los partidos jugados. Local: los de casa. Visitante: los de fuera.")
 
     if equipo_a == equipo_b:
         st.warning("Elegiste el mismo equipo dos veces. Elige dos equipos diferentes para compararlos.")
@@ -145,8 +146,9 @@ def pagina_local_visitante(estadisticas, temporada):
     datos = comparador.datos_por_partido(estadisticas, temporada, equipo)
     st.altair_chart(graficos.grafico_local_visitante_equipo(
         datos, f"{equipo} · promedios por partido de local y de visitante · {temporada}"))
-    st.caption("Se comparan promedios por partido porque de local y de visitante se juegan los mismos "
-               "partidos (19), y así las estadísticas de distinto tamaño se leen en su propio panel.")
+    st.caption("Se comparan promedios por partido para que no importe cuántos partidos se jugaron en casa "
+               "y fuera (19 y 19 en una temporada completa), y así las estadísticas de distinto tamaño "
+               "se leen en su propio panel.")
 
     tabla = comparador.tabla_local_visitante(estadisticas, temporada, equipo)
     st.dataframe(comparador.para_mostrar(tabla, ["Local", "Visitante", "Diferencia"]), hide_index=True,
@@ -162,12 +164,23 @@ def pagina_correlaciones(estadisticas, temporada):
     html(encabezado("Relaciones y correlaciones",
                     "Qué estadísticas suben y bajan juntas (un punto = un equipo en una temporada)"))
     izquierda, derecha = st.columns(2)
-    opciones_alcance = ["Las cinco temporadas (100 equipo-temporada)", f"Solo {temporada} (20 equipos)"]
+    completas = solo_completas(estadisticas)
+    n_completas = len(completas[completas["Condicion"] == "Total"])
+    opciones_alcance = [f"{texto_temporadas_completas(estadisticas).capitalize()} ({n_completas} equipo-temporada)",
+                        f"Solo {temporada} (20 equipos)"]
     alcance = izquierda.radio("Datos", opciones_alcance, horizontal=True)
     condicion = derecha.radio("Partidos", ["Total", "Local", "Visitante"], horizontal=True, key="condicion_corr")
     temporada_datos = None if alcance == opciones_alcance[0] else temporada
-    tabla = correlaciones.preparar_tabla(estadisticas, condicion, temporada_datos)
+    # Con varias temporadas se usan solo las completas; con una sola, la elegida (aunque esté en curso).
+    tabla = correlaciones.preparar_tabla(completas if temporada_datos is None else estadisticas,
+                                         condicion, temporada_datos)
     n = len(tabla)
+    if esta_en_curso(estadisticas, temporada):
+        if temporada_datos is None:
+            st.caption(f"{temporada} está en curso y no entra en este cálculo: sus promedios salen de pocos partidos.")
+        else:
+            st.caption(f"{temporada} está en curso: con pocos partidos por equipo las correlaciones cambian "
+                       "mucho de una jornada a otra.")
 
     st.warning("**Correlación no es causalidad.** Una correlación alta dice que dos estadísticas suelen "
                "subir o bajar juntas, no que una cause la otra. Por ejemplo, la calidad de un equipo puede "
@@ -204,7 +217,7 @@ def pagina_correlaciones(estadisticas, temporada):
                 datos, recta, nombre_x, nombre_y, f"{nombre_x} y {nombre_y.lower()} por partido · {condicion.lower()}",
                 temporada if temporada_datos is None else None), use_container_width=True)
         st.info(correlaciones.explicar(r, nombre_x, nombre_y, n))
-        if temporada_datos is None:
+        if temporada_datos is None and not esta_en_curso(estadisticas, temporada):
             st.caption(f"Los puntos de {temporada} se ven más fuertes. La línea discontinua es la recta de "
                        "mínimos cuadrados (np.polyfit).")
 
@@ -227,10 +240,14 @@ def pagina_correlaciones(estadisticas, temporada):
 # Récords históricos
 # ---------------------------------------------------------------------------
 def pagina_records(estadisticas, partidos, temporada):
-    html(encabezado("Récords históricos", "Lo máximo de las cinco temporadas, de 2020/21 a 2024/25"))
-    st.caption("Esta sección compara las cinco temporadas, así que no depende de la temporada elegida en la "
+    todas_las_temporadas = sorted(estadisticas["Temporada"].unique())
+    completas = temporadas_completas(estadisticas)
+    en_curso = [t for t in todas_las_temporadas if t not in completas]
+    html(encabezado("Récords históricos",
+                    f"Lo máximo de todas las temporadas, de {todas_las_temporadas[0]} a {todas_las_temporadas[-1]}"))
+    st.caption("Esta sección compara todas las temporadas, así que no depende de la temporada elegida en la "
                f"barra lateral; las filas de {temporada} se resaltan en los gráficos.")
-    tipo = st.radio("Tipo de récord", ["De una sola temporada", "Acumulado de las cinco temporadas",
+    tipo = st.radio("Tipo de récord", ["De una sola temporada", "Acumulado de todas las temporadas",
                                        "Récords de partidos"], horizontal=True)
 
     if tipo == "Récords de partidos":
@@ -243,9 +260,13 @@ def pagina_records(estadisticas, partidos, temporada):
 
     if tipo == "De una sola temporada":
         izquierda, derecha = st.columns(2)
-        todas = sorted(estadisticas["Temporada"].unique())
-        temporadas = izquierda.multiselect("Temporadas incluidas", todas, default=todas)
+        # Un récord de temporada suma 38 partidos: una temporada en curso no se puede comparar todavía.
+        estadisticas = solo_completas(estadisticas)
+        temporadas = izquierda.multiselect("Temporadas incluidas", completas, default=completas)
         equipo = derecha.selectbox("Equipo", ["Todos"] + sorted(estadisticas["Equipo"].unique()))
+        if en_curso:
+            st.caption(f"{' y '.join(en_curso)} está en curso y no entra en los récords de una temporada "
+                       "(se comparan temporadas de 38 partidos).")
         if not temporadas:
             st.info("Elige al menos una temporada.")
             return
@@ -275,20 +296,23 @@ def pagina_records(estadisticas, partidos, temporada):
     else:
         tabla = records.ranking_acumulado(estadisticas, columna, menor_es_mejor)
         primeros = tabla[tabla["Pos"] == 1]
+        numero = len(todas_las_temporadas)
         html(tarjeta(f"Récord acumulado · {nombre.lower()}", f"{int(primeros[columna].iloc[0])}",
-                     f"{lista_texto(primeros['Equipo'])} en las cinco temporadas", True))
+                     f"{lista_texto(primeros['Equipo'])} en las {numero} temporadas", True))
         top = tabla.head(10)
         st.altair_chart(graficos.grafico_barras_ordenadas(
-            top, "Equipo", columna, f"{titulo_valor} (suma de 5 temporadas)", f"{nombre} sumando las cinco temporadas"),
-            use_container_width=True)
+            top, "Equipo", columna, f"{titulo_valor} (suma de {numero} temporadas)",
+            f"{nombre} sumando las {numero} temporadas"), use_container_width=True)
         st.dataframe(con_insignia(tabla).rename(columns={columna: titulo_valor}), hide_index=True,
                      use_container_width=True, column_config=CONFIG_INSIGNIA)
         if menor_es_mejor:
-            st.caption("Solo se comparan los 13 equipos que jugaron las cinco temporadas: un equipo con menos "
-                       "temporadas recibiría menos goles solo por haber jugado menos partidos.")
+            st.caption(f"Solo se comparan los {len(tabla)} equipos que jugaron las {numero} temporadas: un equipo "
+                       "con menos temporadas recibiría menos goles solo por haber jugado menos partidos.")
         else:
-            st.caption("No todos los equipos jugaron las cinco temporadas (columna «Temporadas»): los "
+            st.caption(f"No todos los equipos jugaron las {numero} temporadas (columna «Temporadas»): los "
                        "acumulados favorecen a los que jugaron más.")
+        if en_curso:
+            st.caption(f"El acumulado incluye los partidos ya jugados de {' y '.join(en_curso)} (temporada en curso).")
     if columna in ["Tiros", "TirosArco"]:
         st.info(AVISO_TIROS_WEST_HAM)
 
@@ -308,7 +332,8 @@ def mostrar_records_de_partidos(partidos):
     st.subheader("Récords de partidos en cada temporada")
     st.dataframe(records.records_de_partidos_por_temporada(partidos), hide_index=True, use_container_width=True)
 
-    st.subheader("Resultados más repetidos (1.900 partidos)")
+    total_partidos = f"{len(partidos):,}".replace(",", ".")
+    st.subheader(f"Resultados más repetidos ({total_partidos} partidos)")
     repetidos = records.resultados_mas_repetidos(partidos)
     st.altair_chart(graficos.grafico_barras_ordenadas(
         repetidos, "Resultado", "Partidos", "Partidos", "Resultados más frecuentes, sin importar quién ganó",

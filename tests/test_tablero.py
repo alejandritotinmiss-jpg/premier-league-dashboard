@@ -74,7 +74,7 @@ def test_dispersion_responde_a_temporada_condicion_y_metrica(datos):
         estadisticas, "2020/21", "Local", "TirosArcoPorPartido", True, ["Arsenal"])
     una = tablero.datos_dispersion(
         estadisticas, "2020/21", "Local", "TirosArcoPorPartido", False, ["Arsenal"])
-    assert len(todas) == 100 and len(una) == 20
+    assert len(todas) == 120 and len(una) == 20         # 6 temporadas completas x 20 equipos
     # Solo se resalta el Arsenal de la temporada elegida, no el de otras temporadas.
     assert todas["Seleccionado"].sum() == 1
     faltas = tablero.datos_dispersion(estadisticas, "2020/21", "Local", "FaltasPorPartido", False, [])
@@ -84,13 +84,14 @@ def test_dispersion_responde_a_temporada_condicion_y_metrica(datos):
 def test_correlaciones_coinciden_con_el_analisis(datos):
     estadisticas, _ = datos
     r, n = tablero.correlacion_con_puntos(estadisticas, None, "Total", "TirosArcoPorPartido", True)
-    assert n == 100 and r == pytest.approx(0.858, abs=0.001)
+    assert n == 120 and r == pytest.approx(0.845, abs=0.001)    # seis temporadas completas
     r_temporada, n_temporada = tablero.correlacion_con_puntos(
         estadisticas, "2021/22", "Total", "TirosArcoPorPartido", False)
     assert n_temporada == 20 and r_temporada != pytest.approx(r)
 
-    tabla = tabla_correlaciones(estadisticas).set_index(["Variable", "Condicion"])["r"]
-    assert tabla[("Tiros al arco", "Local")] == pytest.approx(0.821, abs=0.001)
+    completas = tablero.solo_completas(estadisticas)
+    tabla = tabla_correlaciones(completas).set_index(["Variable", "Condicion"])["r"]
+    assert tabla[("Tiros al arco", "Local")] == pytest.approx(0.798, abs=0.001)
     assert tabla[("Tiros al arco", "Visitante")] == pytest.approx(0.779, abs=0.001)
 
 
@@ -114,5 +115,22 @@ def test_ventaja_local_y_resultados(datos):
     assert tablero.resultados_temporada(equipo_partido, "2020/21") == {
         "Gana el local": 144, "Empate": 83, "Gana el visitante": 153}
     mejor_local, total, diferencia = tablero.equipos_mejor_de_local(estadisticas)
-    assert (mejor_local, total) == (73, 100)
-    assert diferencia == pytest.approx(0.276, abs=0.001)
+    assert (mejor_local, total) == (88, 120)
+    assert diferencia == pytest.approx(0.293, abs=0.001)
+
+
+def test_temporadas_completas_y_en_curso(datos):
+    estadisticas, equipo_partido = datos
+    completas = tablero.temporadas_completas(estadisticas)
+    assert completas[:6] == ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25", "2025/26"]
+    assert not tablero.esta_en_curso(estadisticas, "2025/26")
+    todas = tablero.temporadas_disponibles(estadisticas)
+    assert len(todas) - len(completas) <= 1          # como mucho una temporada en curso
+    for temporada in todas:
+        # Cualquier temporada, completa o no, tiene 20 equipos y una clasificación ordenada.
+        tabla = tablero.tabla_clasificacion(estadisticas, temporada, "Total")
+        assert len(tabla) == 20 and tabla["Pts"].is_monotonic_decreasing
+        evolucion = tablero.evolucion_puntos(equipo_partido, temporada, [tabla.loc[0, "Equipo"]])
+        assert evolucion["EsUltimo"].sum() == 1
+    # Solo 2020/21 tuvo más victorias visitantes que locales entre las temporadas completas.
+    assert tablero.temporadas_con_mas_victorias_visitantes(equipo_partido, completas[:6]) == ["2020/21"]

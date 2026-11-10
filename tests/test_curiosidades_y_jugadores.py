@@ -9,7 +9,7 @@ from src.jugadores import cargar_jugadores, lideres, ranking
 from src.partidos import partidos_de_temporada
 from src.preparar_datos import CARPETA_PROCESADOS
 
-TEMPORADAS = ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25"]
+TEMPORADAS = ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25", "2025/26"]
 
 
 @pytest.fixture(scope="module")
@@ -54,6 +54,7 @@ def test_lideres_coinciden_con_los_premios_oficiales(jugadores):
         "2022/23": ({"Erling Haaland"}, 36, {"Kevin De Bruyne"}, 16),
         "2023/24": ({"Erling Haaland"}, 27, {"Ollie Watkins"}, 13),
         "2024/25": ({"Mohamed Salah"}, 29, {"Mohamed Salah"}, 18),
+        "2025/26": ({"Erling Haaland"}, 27, {"Bruno Fernandes"}, 21),
     }
     for temporada, (gol, n_gol, asis, n_asis) in esperados.items():
         primeros = lideres(ranking(goleadores, temporada, "Goles"))
@@ -69,14 +70,16 @@ def test_cada_jugador_es_de_un_equipo_que_jugo_esa_temporada(jugadores, datos):
         assert tabla["EquipoCorto"].notna().all()
         for temporada, equipo in zip(tabla["Temporada"], tabla["EquipoCorto"]):
             assert equipo in set(partidos.loc[partidos["Temporada"] == temporada, "HomeTeam"]), (temporada, equipo)
-    assert set(fuentes["temporadas"]) == set(TEMPORADAS)
+    assert set(TEMPORADAS) <= set(fuentes["temporadas"])
     assert fuentes["temporadas"]["2020/21"]["completo"] is False
 
 
-def test_insignias_y_abreviaturas_de_los_27_equipos(datos):
+def test_insignias_y_abreviaturas_de_los_equipos(datos):
     partidos, _ = datos
     equipos = set(partidos["HomeTeam"])
-    assert equipos == set(EQUIPOS)
+    # Los 30 equipos de 2020/21 a 2026/27 tienen nombre, abreviatura y alias propios.
+    hasta_2026 = set(partidos.loc[partidos["Temporada"] <= "2026/27", "HomeTeam"])
+    assert hasta_2026 == set(EQUIPOS) and len(EQUIPOS) == 30
     abreviaturas = [abreviatura(e) for e in equipos]
-    assert len(set(abreviaturas)) == len(abreviaturas) == 27
+    assert len(set(abreviaturas)) == len(abreviaturas)
     assert all(insignia(e).startswith("data:image/svg+xml;base64,") for e in equipos)

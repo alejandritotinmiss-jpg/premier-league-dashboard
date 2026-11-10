@@ -77,6 +77,16 @@ def test_temporada_incompleta_no_es_valida():
     assert validacion["columnas_correctas"] and validacion["resultados_incoherentes"] == 0
     assert validacion["filas"] == 3  # una temporada real tiene 380
     assert temporada_es_valida(validacion) is False
+    # Ni siquiera como temporada en curso: no están los 20 equipos ni jugaron todos en casa y fuera.
+    assert temporada_es_valida(validacion, puede_estar_en_curso=True) is False
+
+
+def test_descubre_las_temporadas_por_el_nombre_del_archivo(tmp_path):
+    from src.limpieza import descubrir_temporadas
+    for nombre in ["season-2122.csv", "season-2021.csv", "season-2627.csv", "notas.csv", "season-abcd.csv"]:
+        (tmp_path / nombre).write_text("Date\n", encoding="utf-8")
+    assert descubrir_temporadas(tmp_path) == {
+        "2020/21": "season-2021.csv", "2021/22": "season-2122.csv", "2026/27": "season-2627.csv"}
 
 
 # --- Puntos, goles y agregación ---------------------------------------------

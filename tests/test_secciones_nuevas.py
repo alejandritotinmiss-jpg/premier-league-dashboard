@@ -12,7 +12,9 @@ from src import comparador, correlaciones, ranking, records, sorpresas
 from src.partidos import partidos_de_temporada
 from src.preparar_datos import CARPETA_PROCESADOS
 
-TEMPORADAS = ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25"]
+from src.tablero import solo_completas
+
+TEMPORADAS = ["2020/21", "2021/22", "2022/23", "2023/24", "2024/25", "2025/26"]
 
 
 @pytest.fixture(scope="module")
@@ -66,13 +68,13 @@ def test_conclusiones_siguen_a_los_datos(datos):
 # --- Correlaciones ------------------------------------------------------------
 def test_matriz_igual_a_pandas_y_simetrica(datos):
     estadisticas, _ = datos
-    tabla = correlaciones.preparar_tabla(estadisticas)
+    tabla = correlaciones.preparar_tabla(solo_completas(estadisticas))
     nombres = list(correlaciones.VARIABLES)
     matriz = correlaciones.matriz_correlacion(tabla, nombres)
     columnas = [correlaciones.VARIABLES[n] for n in nombres]
     assert np.allclose(matriz.values, tabla[columnas].corr().values)
     assert np.allclose(matriz.values, matriz.values.T)
-    assert round(matriz.loc["Tiros al arco", "Puntos"], 2) == 0.86
+    assert len(tabla) == 120 and round(matriz.loc["Tiros al arco", "Puntos"], 2) == 0.85
 
 
 def test_explicacion_no_habla_de_causas_como_hecho(datos):
@@ -84,13 +86,15 @@ def test_explicacion_no_habla_de_causas_como_hecho(datos):
 # --- Récords ------------------------------------------------------------------
 def test_records_de_una_temporada_y_acumulados(datos):
     estadisticas, _ = datos
-    puntos = records.ranking_una_temporada(estadisticas, "Puntos", False)
-    assert len(puntos) == 100
+    completas = solo_completas(estadisticas)
+    puntos = records.ranking_una_temporada(completas, "Puntos", False)
+    assert len(puntos) == 120
     assert tuple(puntos.loc[0, ["Temporada", "Equipo", "Puntos"]]) == ("2021/22", "Man City", 93)
-    recibidos = records.ranking_una_temporada(estadisticas, "GolesContra", True)
+    recibidos = records.ranking_una_temporada(completas, "GolesContra", True)
     assert set(recibidos.loc[recibidos["Pos"] == 1, "Equipo"]) == {"Liverpool", "Man City"}   # 26 en 2021/22
     acumulado = records.ranking_acumulado(estadisticas, "GolesContra", True)
-    assert (acumulado["Temporadas"] == 5).all()
+    # Solo entran los equipos que jugaron todas las temporadas de los datos.
+    assert (acumulado["Temporadas"] == estadisticas["Temporada"].nunique()).all() and len(acumulado) >= 10
 
 
 def test_records_de_partidos(datos):

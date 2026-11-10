@@ -55,7 +55,7 @@ def fuerza(r):
 def tabla_correlaciones(estadisticas, condiciones=("Local", "Visitante"), temporada=None):
     """Correlación de cada variable de juego con los puntos por partido.
 
-    Con temporada=None usa las cinco temporadas (100 equipo-temporada).
+    Con temporada=None usa todas las filas que reciba (la app le pasa las temporadas completas).
     """
     filas = []
     for condicion in condiciones:

@@ -47,7 +47,7 @@ def grafico_evolucion(datos, equipos, titulo):
                  alt.Tooltip("Marcador:N"), alt.Tooltip("PuntosAcumulados:Q", title="Puntos acumulados")],
     )
     # Etiqueta directa al final de cada línea.
-    finales = alt.Chart(datos).transform_filter("datum.NumeroPartido == 38").mark_text(
+    finales = alt.Chart(datos).transform_filter("datum.EsUltimo").mark_text(
         align="left", dx=6, color=COLOR_TEXTO,
     ).encode(x="NumeroPartido:Q", y="PuntosAcumulados:Q", text="PuntosAcumulados:Q")
     return (lineas + finales).properties(title=titulo, height=420)
@@ -316,3 +316,63 @@ def grafico_lideres_por_temporada(datos, titulo_eje, titulo):
     valores = base.mark_text(dy=-8, color=COLOR_TEXTO, fontWeight="bold").encode(text="Valor:Q")
     equipos = base.mark_text(dy=-22, color=COLOR_TEXTO, fontSize=10).encode(text="Equipo:N")
     return alt.layer(barras, valores, equipos).properties(title=titulo, height=320)
+
+
+# ---------------------------------------------------------------------------
+# Analizador predictivo
+# ---------------------------------------------------------------------------
+COLOR_EMPATE = "#8b8794"
+
+
+def grafico_probabilidades(local, visitante, probabilidades, titulo):
+    """Tres barras con las probabilidades del modelo: gana el local, empate y gana el visitante."""
+    datos = pd.DataFrame({
+        "Resultado": [f"Gana {local}", "Empate", f"Gana {visitante}"],
+        "Probabilidad": [probabilidades["H"], probabilidades["D"], probabilidades["A"]],
+    })
+    orden = datos["Resultado"].tolist()
+    colores = [COLORES_CONDICION["Local"], COLOR_EMPATE, COLORES_CONDICION["Visitante"]]
+    base = alt.Chart(datos).encode(
+        y=alt.Y("Resultado:N", sort=orden, title=None, axis=alt.Axis(labelLimit=220)),
+        x=alt.X("Probabilidad:Q", title="Probabilidad estimada", scale=alt.Scale(domain=[0, 1]),
+                axis=alt.Axis(format=".0%")),
+        tooltip=[alt.Tooltip("Resultado:N"), alt.Tooltip("Probabilidad:Q", format=".1%")],
+    )
+    barras = base.mark_bar(cornerRadiusEnd=4, size=34).encode(
+        color=alt.Color("Resultado:N", scale=alt.Scale(domain=orden, range=colores), legend=None))
+    etiquetas = base.mark_text(align="left", dx=6, color=COLOR_TEXTO, fontWeight="bold").encode(
+        text=alt.Text("Probabilidad:Q", format=".1%"))
+    return (barras + etiquetas).properties(title=titulo, height=170)
+
+
+def grafico_backtesting(datos, titulo):
+    """Aciertos del modelo y del baseline en cada temporada del backtesting."""
+    escala = alt.Scale(domain=["Modelo", "Baseline"], range=[COLORES_CONDICION["Local"], COLOR_EMPATE])
+    base = alt.Chart(datos).encode(
+        x=alt.X("Temporada:N", title=None, axis=alt.Axis(labelAngle=0)),
+        y=alt.Y("Aciertos:Q", title="Aciertos (accuracy)", scale=alt.Scale(domain=[0, 1]),
+                axis=alt.Axis(format=".0%")),
+        xOffset=alt.XOffset("Serie:N", sort=["Modelo", "Baseline"]),
+        tooltip=[alt.Tooltip("Temporada:N"), alt.Tooltip("Serie:N"), alt.Tooltip("Aciertos:Q", format=".1%"),
+                 alt.Tooltip("Partidos:Q")],
+    )
+    barras = base.mark_bar(cornerRadiusEnd=4).encode(
+        color=alt.Color("Serie:N", scale=escala, legend=alt.Legend(title=None, orient="top")))
+    etiquetas = base.mark_text(dy=-6, color=COLOR_TEXTO, fontSize=11).encode(
+        text=alt.Text("Aciertos:Q", format=".0%"))
+    return (barras + etiquetas).properties(title=titulo, height=300)
+
+
+def grafico_calibracion(datos, titulo):
+    """Probabilidad que dijo el modelo frente a la frecuencia con que pasó (la diagonal es lo ideal)."""
+    diagonal = alt.Chart(pd.DataFrame({"x": [0, 1], "y": [0, 1]})).mark_line(
+        color=COLOR_EMPATE, strokeDash=[6, 4]).encode(x="x:Q", y="y:Q")
+    puntos = alt.Chart(datos).mark_line(color=COLORES_CONDICION["Local"], point=alt.OverlayMarkDef(size=70)).encode(
+        x=alt.X("Probabilidad media:Q", title="Probabilidad que dio el modelo", scale=alt.Scale(domain=[0, 1]),
+                axis=alt.Axis(format=".0%")),
+        y=alt.Y("Frecuencia real:Q", title="Frecuencia con que pasó", scale=alt.Scale(domain=[0, 1]),
+                axis=alt.Axis(format=".0%")),
+        tooltip=[alt.Tooltip("Tramo:N"), alt.Tooltip("Casos:Q"),
+                 alt.Tooltip("Probabilidad media:Q", format=".1%"), alt.Tooltip("Frecuencia real:Q", format=".1%")],
+    )
+    return (diagonal + puntos).properties(title=titulo, height=320)

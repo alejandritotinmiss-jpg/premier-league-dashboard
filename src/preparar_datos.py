@@ -15,8 +15,8 @@ from src.estadisticas import (
     partidos_a_equipo_partido,
 )
 from src.limpieza import (
-    TEMPORADAS,
     cargar_temporada,
+    descubrir_temporadas,
     limpiar_temporada,
     temporada_es_valida,
     validar_temporada,
@@ -29,18 +29,20 @@ CARPETA_PROCESADOS = RAIZ_PROYECTO / "data" / "processed"
 
 
 def limpiar_todas(carpeta_raw=CARPETA_RAW):
-    """Carga, valida y limpia las cinco temporadas y las une en una sola tabla."""
+    """Carga, valida y limpia todas las temporadas de data/raw/ y las une en una sola tabla."""
+    temporadas = descubrir_temporadas(carpeta_raw)
+    if not temporadas:
+        raise FileNotFoundError(f"No hay archivos season-AABB.csv en {carpeta_raw}.")
+    ultima = list(temporadas)[-1]
+
     limpias = []
     reporte = {"validacion_por_temporada": {}, "cambios": []}
-    for temporada, archivo in TEMPORADAS.items():
-        ruta = Path(carpeta_raw) / archivo
-        if not ruta.exists():
-            raise FileNotFoundError(f"Falta el archivo {archivo} de la temporada {temporada}.")
-
-        df = cargar_temporada(ruta, temporada)
+    for temporada, archivo in temporadas.items():
+        df = cargar_temporada(Path(carpeta_raw) / archivo, temporada)
         validacion = validar_temporada(df, temporada)
         reporte["validacion_por_temporada"][temporada] = validacion
-        if not temporada_es_valida(validacion):
+        # Solo la temporada más reciente puede estar en curso (tener menos de 380 partidos).
+        if not temporada_es_valida(validacion, puede_estar_en_curso=(temporada == ultima)):
             raise ValueError(f"La temporada {temporada} no pasa la validación: {validacion}")
 
         limpio, cambios = limpiar_temporada(df)
@@ -80,10 +82,12 @@ def guardar_tablas(carpeta_raw=CARPETA_RAW, carpeta_salida=CARPETA_PROCESADOS):
     carpeta_salida.mkdir(parents=True, exist_ok=True)
 
     for nombre, tabla in tablas.items():
-        tabla.to_csv(carpeta_salida / f"{nombre}.csv", index=False)
+        tabla.to_csv(carpeta_salida / f"{nombre}.csv", index=False, lineterminator="\n")
 
-    reporte["filas_finales"] = int(len(tablas["partidos_limpios"]))
-    with open(carpeta_salida / "reporte_limpieza.json", "w", encoding="utf-8") as archivo:
+    partidos = tablas["partidos_limpios"]
+    reporte["filas_finales"] = int(len(partidos))
+    reporte["fecha_ultimo_partido"] = str(partidos["Date"].max().date())
+    with open(carpeta_salida / "reporte_limpieza.json", "w", encoding="utf-8", newline="\n") as archivo:
         json.dump(reporte, archivo, ensure_ascii=False, indent=2)
     return tablas
 

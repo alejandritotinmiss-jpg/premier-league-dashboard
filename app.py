@@ -1,20 +1,23 @@
-"""Premier League Data Analytics: rendimiento de los equipos de la Premier League, 2020/21 a 2024/25.
+"""Premier League Data Analytics: rendimiento de los equipos de la Premier League desde 2020/21.
 
 Ejecutar desde la carpeta raíz del proyecto:
     streamlit run app.py
 
-La app tiene trece secciones que se eligen en la barra lateral. La lógica está en src/:
+La app tiene catorce secciones que se eligen en la barra lateral. La lógica está en src/:
     src/tablero.py       datos de cada gráfico según los filtros
     src/secciones.py     comparador, local vs. visitante, correlaciones, ranking, récords y sorpresas
     src/comparador.py    comparador de equipos y local contra visitante
     src/correlaciones.py matriz de correlación y explicaciones
-    src/records.py       récords de las cinco temporadas
+    src/records.py       récords de todas las temporadas
     src/ranking.py       ranking personalizado
     src/sorpresas.py     detector de sorpresas
     src/graficos.py      gráficos (Altair)
     src/jugadores.py     goleadores y asistentes
     src/partidos.py      búsqueda y ficha de partidos
-    src/asistente.py     asistente basado en reglas
+    src/asistente.py     asistente basado en reglas (resultados y partidos)
+    src/chatbot.py       chatbot: entiende la pregunta y consulta estadísticas, calendario y modelo
+    src/modelo.py        modelo predictivo (regresión logística multinomial)
+    src/pagina_prediccion.py  sección «Analizador predictivo»
     src/curiosidades.py  curiosidades de cada temporada
     src/estilos.py       colores, encabezado y tarjetas
 """
@@ -24,11 +27,14 @@ import streamlit as st
 
 from src import graficos, secciones, tablero
 from src.analisis import correlacion, fuerza, tabla_correlaciones
-from src.asistente import EJEMPLOS, responder
+from src.chatbot import EJEMPLOS_CHAT, responder_chat
 from src.curiosidades import curiosidades_temporada, elegir_curiosidad
 from src.equipos import nombre_completo
-from src.estilos import CONFIG_INSIGNIA, CSS, con_insignia, encabezado, tarjeta
+from src.entrenar_modelo import C_POR_DEFECTO, cargar_evaluacion, preparar_modelo
+from src.estilos import CONFIG_INSIGNIA, CSS, con_insignia, encabezado, tarjeta, tarjeta_partido
+from src.interprete_llm import crear_interprete, leer_clave
 from src.jugadores import cargar_jugadores, lideres, ranking
+from src.pagina_prediccion import pagina_prediccion
 from src.partidos import fecha_texto, ficha_partido, marcador, partidos_de_temporada, tabla_resumen
 from src.preparar_datos import CARPETA_PROCESADOS, guardar_tablas
 
@@ -37,7 +43,13 @@ st.markdown(CSS, unsafe_allow_html=True)
 
 SECCIONES = ["Inicio", "Clasificación", "Análisis", "Comparador de equipos", "Local vs. visitante",
              "Relaciones y correlaciones", "Ranking personalizado", "Récords históricos",
-             "Goleadores y Asistencias", "Partidos", "Detector de sorpresas", "Asistente IA", "Curiosidades"]
+             "Goleadores y Asistencias", "Partidos", "Detector de sorpresas", "Analizador predictivo",
+             "Asistente IA", "Curiosidades"]
+
+
+def formato_miles(numero):
+    """Escribe un entero con punto de miles: 2380 -> '2.380'."""
+    return f"{numero:,}".replace(",", ".")
 
 
 def formato(numero, decimales=2):
@@ -45,20 +57,36 @@ def formato(numero, decimales=2):
     return f"{numero:.{decimales}f}".replace(".", ",")
 
 
+RUTAS_DATOS = {
+    "partidos": CARPETA_PROCESADOS / "partidos_limpios.csv",
+    "equipo_partido": CARPETA_PROCESADOS / "equipo_partido.csv",
+    "estadisticas": CARPETA_PROCESADOS / "estadisticas_equipo_temporada.csv",
+}
+
+
+def firma_de_los_datos():
+    """Texto que cambia cuando cambian los archivos de datos (fecha de modificación y tamaño).
+
+    Se usa como argumento de las funciones con caché: si llegan datos nuevos, la firma
+    cambia y Streamlit vuelve a leer los archivos y a entrenar el modelo.
+    """
+    if any(not ruta.exists() for ruta in RUTAS_DATOS.values()):
+        guardar_tablas()
+    partes = []
+    for ruta in RUTAS_DATOS.values():
+        estado = ruta.stat()
+        partes.append(f"{ruta.name}:{estado.st_mtime_ns}:{estado.st_size}")
+    return "|".join(partes)
+
+
 @st.cache_data
-def cargar_datos():
+def cargar_datos(firma):
     """Lee las tablas procesadas (si no existen, las genera a partir de data/raw/).
 
-    @st.cache_data guarda el resultado: los archivos se leen una sola vez,
-    no cada vez que el usuario cambia un filtro.
+    @st.cache_data guarda el resultado: los archivos se leen una sola vez por versión
+    de los datos, no cada vez que el usuario cambia un filtro.
     """
-    rutas = {
-        "partidos": CARPETA_PROCESADOS / "partidos_limpios.csv",
-        "equipo_partido": CARPETA_PROCESADOS / "equipo_partido.csv",
-        "estadisticas": CARPETA_PROCESADOS / "estadisticas_equipo_temporada.csv",
-    }
-    if any(not ruta.exists() for ruta in rutas.values()):
-        guardar_tablas()
+    rutas = RUTAS_DATOS
     partidos = pd.read_csv(rutas["partidos"], parse_dates=["Date"])
     equipo_partido = pd.read_csv(rutas["equipo_partido"])
     estadisticas = pd.read_csv(rutas["estadisticas"])
@@ -70,12 +98,32 @@ def cargar_datos_jugadores():
     return cargar_jugadores()
 
 
+@st.cache_resource(show_spinner=False)
+def cargar_modelo(firma, _partidos, c):
+    """Entrena el modelo predictivo una sola vez por versión de los datos.
+
+    No se entrena en cada pregunta ni en cada clic: el resultado queda guardado en la
+    caché hasta que cambien los datos (cambia la firma).
+    """
+    return preparar_modelo(_partidos, c)
+
+
 try:
-    partidos, equipo_partido, estadisticas = cargar_datos()
+    FIRMA = firma_de_los_datos()
+    partidos, equipo_partido, estadisticas = cargar_datos(FIRMA)
     goleadores, asistencias, fuentes_jugadores = cargar_datos_jugadores()
 except (FileNotFoundError, ValueError) as error:
     st.error(f"No se pudieron cargar los datos: {error}")
     st.stop()
+
+evaluacion_modelo = cargar_evaluacion()
+
+
+def obtener_modelo():
+    """Devuelve el modelo ya entrenado (lo entrena la primera vez que se necesita)."""
+    c = evaluacion_modelo["c_elegido"] if evaluacion_modelo else C_POR_DEFECTO
+    return cargar_modelo(FIRMA, partidos, c)
+
 
 # ---------------------------------------------------------------------------
 # Barra lateral: menú, temporada y filtros de la sección
@@ -90,6 +138,14 @@ temporada = st.sidebar.selectbox("Temporada", temporadas, index=len(temporadas) 
 equipos_temporada = tablero.equipos_de_temporada(estadisticas, temporada)
 partidos_temporada = partidos_de_temporada(partidos, temporada)
 
+# Una temporada está en curso mientras no tenga los 380 partidos.
+en_curso = tablero.esta_en_curso(estadisticas, temporada)
+texto_completas = tablero.texto_temporadas_completas(estadisticas)
+fecha_datos = fecha_texto(partidos["Date"].max())
+if en_curso:
+    st.sidebar.info(f"**{temporada} está en curso:** {len(partidos_temporada)} partidos jugados, "
+                    f"datos hasta el {fecha_texto(partidos_temporada['Date'].max())}.")
+
 condicion = "Total"
 seleccionados = tablero.equipos_por_defecto(estadisticas, temporada)
 nombre_metrica = "Tiros al arco"
@@ -99,7 +155,7 @@ if seccion in ["Clasificación", "Análisis"]:
     st.sidebar.divider()
     condicion = st.sidebar.radio(
         "Partidos", tablero.CONDICIONES, horizontal=True,
-        help="Total: los 38 partidos. Local: los 19 en casa. Visitante: los 19 fuera.")
+        help="Total: todos los partidos jugados. Local: los de casa. Visitante: los de fuera.")
     # Las opciones dependen de la temporada: solo aparecen los 20 equipos que la jugaron.
     seleccionados = st.sidebar.multiselect(
         "Equipos (hasta 6)", equipos_temporada,
@@ -111,15 +167,16 @@ if seccion == "Análisis":
         "Estadística de juego", list(tablero.METRICAS), index=1,
         help="Se compara con los puntos y entre local y visitante. Todas son promedios por partido.")
     todas_las_temporadas = st.sidebar.toggle(
-        "Relación con los puntos: usar las cinco temporadas", value=True,
-        help="Activado: 100 equipo-temporada. Desactivado: solo los 20 equipos de la temporada elegida.")
+        "Relación con los puntos: usar las temporadas completas", value=True,
+        help=f"Activado: {texto_completas} juntas. Desactivado: solo los 20 equipos de la temporada elegida.")
 
 columna_metrica = tablero.METRICAS[nombre_metrica]
 
 st.sidebar.divider()
-st.sidebar.caption("Partidos: Football-Data.co.uk, vía DataHub (dominio público). Goleadores y "
-                   "asistencias: ESPN, Premier League y Wikipedia (ver la sección). Puntos "
+st.sidebar.caption("Partidos: Football-Data.co.uk (hasta 2025/26 vía DataHub, dominio público). Goleadores "
+                   "y asistencias: ESPN, Premier League y Wikipedia (ver la sección). Puntos "
                    "calculados con los resultados de los partidos.")
+st.sidebar.caption(f"Último partido en los datos: {fecha_datos}.")
 
 # Cálculos que usan varias secciones.
 clasificacion = tablero.tabla_clasificacion(estadisticas, temporada, condicion)
@@ -134,7 +191,7 @@ ventaja_temporada = ventaja[ventaja["Temporada"] == temporada].set_index("Condic
 def pagina_inicio():
     st.markdown(encabezado("Más allá de la tabla",
                            "Exploración interactiva del rendimiento de los equipos de la Premier "
-                           "League, de 2020/21 a 2024/25"), unsafe_allow_html=True)
+                           f"League, de {temporadas[0]} a {temporadas[-1]}"), unsafe_allow_html=True)
     st.markdown("**Pregunta guía:** ¿cómo se relacionan los tiros, tiros al arco, córners, faltas y "
                 "tarjetas con los goles y los puntos, y qué diferencias hay entre jugar de local y "
                 "de visitante?")
@@ -143,17 +200,23 @@ def pagina_inicio():
     tabla_goles = ranking(goleadores, temporada, "Goles")
     lider_goles = lideres(tabla_goles)
     columnas = st.columns(4)
-    columnas[0].markdown(tarjeta(f"Campeón {temporada}", total.loc[0, "Equipo"],
+    titulo_primero = f"Líder {temporada} (en curso)" if en_curso else f"Campeón {temporada}"
+    columnas[0].markdown(tarjeta(titulo_primero, total.loc[0, "Equipo"],
                                  f"{total.loc[0, 'Pts']} puntos ganados en el campo", True),
                          unsafe_allow_html=True)
-    columnas[1].markdown(tarjeta("Partidos ganados por el local", f"{resultados['Gana el local']} de 380",
+    columnas[1].markdown(tarjeta("Partidos ganados por el local",
+                                 f"{resultados['Gana el local']} de {len(partidos_temporada)}",
                                  f"{resultados['Gana el visitante']} ganados por el visitante y "
                                  f"{resultados['Empate']} empates"), unsafe_allow_html=True)
     columnas[2].markdown(tarjeta("Ventaja de local", formato(ventaja_temporada["Local"] - ventaja_temporada["Visitante"]),
                                  f"puntos por partido de diferencia (local {formato(ventaja_temporada['Local'])}, "
                                  f"visitante {formato(ventaja_temporada['Visitante'])})"), unsafe_allow_html=True)
-    columnas[3].markdown(tarjeta("Máximo goleador", " y ".join(lider_goles["Jugador"]),
-                                 f"{int(lider_goles['Goles'].iloc[0])} goles"), unsafe_allow_html=True)
+    if lider_goles.empty:
+        columnas[3].markdown(tarjeta("Máximo goleador", "Sin datos", "Aún no hay tabla de goleadores "
+                                     "de esta temporada"), unsafe_allow_html=True)
+    else:
+        columnas[3].markdown(tarjeta("Máximo goleador", " y ".join(lider_goles["Jugador"]),
+                                     f"{int(lider_goles['Goles'].iloc[0])} goles"), unsafe_allow_html=True)
 
     r_arco = {}
     for nombre_condicion in tablero.CONDICIONES:
@@ -161,7 +224,17 @@ def pagina_inicio():
             estadisticas, None, nombre_condicion, "TirosArcoPorPartido", True)
     mejor_local, total_equipos, diferencia_media = tablero.equipos_mejor_de_local(estadisticas)
 
-    st.subheader("Hallazgos principales (cinco temporadas, 100 equipo-temporada)")
+    # Temporadas completas en las que los visitantes ganaron más partidos que los locales.
+    completas = tablero.temporadas_completas(estadisticas)
+    excepciones = tablero.temporadas_con_mas_victorias_visitantes(equipo_partido, completas)
+    if excepciones == ["2020/21"]:
+        hallazgo_4 = ("4. **2020/21, jugada casi sin público, es la excepción:** fue la única temporada "
+                      "completa en que los visitantes ganaron más partidos que los locales.")
+    else:
+        hallazgo_4 = ("4. **Temporadas en que los visitantes ganaron más partidos que los locales:** "
+                      f"{', '.join(excepciones) if excepciones else 'ninguna'}.")
+
+    st.subheader(f"Hallazgos principales ({len(completas)} temporadas completas, {total_equipos} equipo-temporada)")
     st.markdown(
         f"1. **Los tiros al arco son la estadística de juego más relacionada con los puntos** "
         f"(r = {formato(r_arco['Total'])}).\n"
@@ -171,9 +244,10 @@ def pagina_inicio():
         f"3. **Lo que cambia es el nivel:** de local los equipos suman de media "
         f"{formato(diferencia_media)} puntos más por partido, y {mejor_local} de los "
         f"{total_equipos} equipo-temporada rindieron mejor en casa.\n"
-        f"4. **2020/21, jugada casi sin público, es la excepción:** fue la única temporada en que "
-        f"los visitantes ganaron más partidos que los locales."
+        f"{hallazgo_4}"
     )
+    if en_curso:
+        st.caption(f"Estos hallazgos usan solo las temporadas completas; {temporada} está en curso.")
 
     st.subheader("Qué hay en cada sección")
     descripciones = [
@@ -183,11 +257,12 @@ def pagina_inicio():
         ("Local vs. visitante", "Cómo cambia un equipo dentro y fuera de casa, con una conclusión calculada."),
         ("Relaciones y correlaciones", "Matriz de correlación, mapa de calor y dispersión con explicación sencilla."),
         ("Ranking personalizado", "Ordena los 20 equipos por la estadística que elijas."),
-        ("Récords históricos", "Lo máximo de las cinco temporadas: de una temporada, acumulados y de partidos."),
+        ("Récords históricos", "Lo máximo de todas las temporadas: de una temporada, acumulados y de partidos."),
         ("Goleadores y Asistencias", "Los jugadores con más goles y asistencias de cada temporada."),
         ("Partidos", "Busca un partido o un enfrentamiento y mira su ficha completa."),
         ("Detector de sorpresas", "Partidos en los que tiros o córners contrastan con el resultado."),
-        ("Asistente IA", "Haz preguntas en lenguaje natural sobre los partidos de la temporada."),
+        ("Analizador predictivo", "Probabilidades de un partido con regresión logística y calidad del modelo."),
+        ("Asistente IA", "Chatbot: pregunta por estadísticas, próximos partidos y predicciones."),
         ("Curiosidades", "Datos llamativos de la temporada y el botón SORPRÉNDEME."),
     ]
     columnas = st.columns(3)
@@ -196,10 +271,12 @@ def pagina_inicio():
 
     with st.expander("Datos y método"):
         st.markdown(
-            "- **Fuente de los partidos:** [English Premier League](https://datahub.io/football/english-premier-league), "
-            "DataHub, a partir de Football-Data.co.uk. Licencia de dominio público (ODC-PDDL-1.0).\n"
-            "- **Datos:** 1.900 partidos de cinco temporadas (380 por temporada), sin valores "
-            "faltantes ni duplicados.\n"
+            "- **Fuente de los partidos:** [Football-Data.co.uk](https://www.football-data.co.uk/englandm.php). "
+            "Las temporadas terminadas se tomaron de [DataHub](https://datahub.io/football/english-premier-league) "
+            "(dominio público, ODC-PDDL-1.0), que publica esos mismos datos; la temporada en curso se "
+            "actualiza desde Football-Data.co.uk.\n"
+            f"- **Datos:** {formato_miles(len(partidos))} partidos de {len(temporadas)} temporadas (380 por "
+            f"temporada completa), sin duplicados. Último partido: {fecha_datos}.\n"
             "- **Limpieza:** se excluyó la columna del árbitro. En Newcastle 2-4 West Ham (15/08/2021) "
             "el dato de tiros del West Ham era imposible (9 al arco con 8 tiros) y se dejó vacío; el "
             "marcador sí cuenta.\n"
@@ -218,7 +295,10 @@ def pagina_inicio():
             "independientes. Los resultados son descriptivos.\n"
             "- No hay datos de posesión ni de calidad de las ocasiones, y los autogoles no se identifican.\n"
             "- Los puntos son los ganados en el campo: no incluyen las sanciones de 2023/24.\n"
-            "- Los datos de goleadores de 2020/21 están incompletos."
+            "- Los datos de goleadores de 2020/21 están incompletos y los de la temporada en curso "
+            "no se actualizan solos.\n"
+            "- Una temporada en curso tiene pocos partidos por equipo: sus promedios cambian mucho "
+            "de una jornada a otra y no entra en los análisis que juntan temporadas."
         )
 
 
@@ -232,7 +312,10 @@ def pagina_clasificacion():
     st.dataframe(con_insignia(clasificacion), hide_index=True, use_container_width=True,
                  height=740, column_config=CONFIG_INSIGNIA)
     st.caption("Orden: puntos, diferencia de goles (DG) y goles a favor (GF). La tabla de local "
-               "o de visitante usa solo esos 19 partidos.")
+               "o de visitante usa solo esos partidos (19 en una temporada completa).")
+    if en_curso:
+        st.info(f"{temporada} está en curso: la tabla cuenta los {len(partidos_temporada)} partidos jugados "
+                f"hasta el {fecha_texto(partidos_temporada['Date'].max())}.")
     if "Pts oficiales" in clasificacion.columns:
         st.warning(
             "En 2023/24, Everton perdió 8 puntos y Nottingham Forest 4 por incumplir las reglas "
@@ -257,7 +340,7 @@ def pagina_clasificacion():
         )
         st.caption("El eje horizontal es el número de partido de cada equipo (1 a 38, por fecha), "
                    "no la jornada oficial: los partidos aplazados cambian el orden de las jornadas. "
-                   "Esta vista siempre usa los 38 partidos.")
+                   "Esta vista siempre usa todos los partidos jugados.")
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +355,7 @@ def pagina_analisis():
     columna1, columna2, columna3, columna4 = st.columns(4)
     columna1.metric(f"Líder ({condicion.lower()})", clasificacion.loc[0, "Equipo"],
                     f"{clasificacion.loc[0, 'Pts']} puntos", delta_color="off")
-    columna2.metric("Partidos ganados por el local", f"{resultados['Gana el local']} de 380",
+    columna2.metric("Partidos ganados por el local", f"{resultados['Gana el local']} de {len(partidos_temporada)}",
                     f"{resultados['Gana el visitante']} ganados por el visitante", delta_color="off")
     columna3.metric("Ventaja de local (puntos por partido)",
                     formato(ventaja_temporada["Local"] - ventaja_temporada["Visitante"]),
@@ -285,7 +368,7 @@ def pagina_analisis():
                         "Local y visitante"])
 
     with pestanas[0]:
-        alcance = "las cinco temporadas" if todas_las_temporadas else temporada
+        alcance = texto_completas if todas_las_temporadas else temporada
         datos = tablero.datos_dispersion(estadisticas, temporada, condicion, columna_metrica,
                                          todas_las_temporadas, seleccionados)
         recta = tablero.recta_tendencia(datos["Valor"], datos["PuntosPorPartido"])
@@ -298,7 +381,8 @@ def pagina_analisis():
                    "tendencia (recta de mínimos cuadrados con np.polyfit).")
 
         temporada_r = None if todas_las_temporadas else temporada
-        correlaciones = tabla_correlaciones(estadisticas, temporada=temporada_r)
+        base_correlaciones = tablero.solo_completas(estadisticas) if todas_las_temporadas else estadisticas
+        correlaciones = tabla_correlaciones(base_correlaciones, temporada=temporada_r)
         st.altair_chart(
             graficos.grafico_correlaciones(
                 correlaciones,
@@ -308,7 +392,10 @@ def pagina_analisis():
         st.info("**Correlación no es causalidad.** Que los equipos con más tiros al arco sumen más "
                 "puntos no demuestra que tirar más cause más puntos: la calidad del equipo puede "
                 "explicar las dos cosas. Con una sola temporada (20 equipos) las correlaciones "
-                "varían más que con las cinco juntas.")
+                "varían más que con varias juntas.")
+        if en_curso and todas_las_temporadas:
+            st.caption(f"{temporada} está en curso y no entra en el cálculo con varias temporadas, por eso "
+                       "sus equipos no aparecen resaltados en el gráfico.")
 
     with pestanas[1]:
         datos = tablero.datos_tiros_arco_goles(estadisticas, temporada, condicion, seleccionados)
@@ -367,7 +454,11 @@ def tabla_jugadores(tabla_ranking, columna):
 
 def pagina_jugadores():
     st.markdown(encabezado("Goleadores y Asistencias", f"Temporada {temporada}"), unsafe_allow_html=True)
-    fuente = fuentes_jugadores["temporadas"][temporada]
+    fuente = fuentes_jugadores["temporadas"].get(temporada)
+    if fuente is None:
+        st.info(f"Todavía no hay tablas de goleadores y asistencias de {temporada} en el proyecto. "
+                "Estas tablas se copian a mano de sus fuentes y no se actualizan automáticamente.")
+        return
     if not fuente["completo"]:
         st.warning(f"**Datos incompletos.** {fuente['nota']}")
     elif fuente["nota"]:
@@ -397,7 +488,7 @@ def pagina_jugadores():
     st.caption(
         f"Goles: [{fuente['goleadores']['fuente']}]({fuente['goleadores']['url']}) · "
         f"Asistencias: [{fuente['asistencias']['fuente']}]({fuente['asistencias']['url']}) · "
-        f"consultado el {fecha_texto(fuentes_jugadores['fecha_consulta'])}. Se muestran los primeros puestos "
+        f"consultado el {fecha_texto(fuente.get('fecha_consulta', fuentes_jugadores['fecha_consulta']))}. Se muestran los primeros puestos "
         "completos (si hay empate en el último puesto, entran todos los empatados)."
     )
 
@@ -445,44 +536,74 @@ def pagina_partidos():
 # ---------------------------------------------------------------------------
 # 6. Asistente IA
 # ---------------------------------------------------------------------------
+def mostrar_respuesta(mensaje):
+    """Dibuja una respuesta del chatbot: texto, tarjetas, probabilidades, gráfico, tabla y fuente."""
+    st.markdown(mensaje["texto"])
+    if mensaje.get("tarjetas"):
+        for columna, (titulo, valor, detalle) in zip(st.columns(len(mensaje["tarjetas"])), mensaje["tarjetas"]):
+            columna.markdown(tarjeta(titulo, valor, detalle), unsafe_allow_html=True)
+    if mensaje.get("probabilidades"):
+        p = mensaje["probabilidades"]
+        st.markdown(tarjeta_partido(p["local"], p["visitante"], "Probabilidades del modelo", "Estimación"),
+                    unsafe_allow_html=True)
+        st.altair_chart(graficos.grafico_probabilidades(p["local"], p["visitante"], p,
+                                                        f"{p['local']} vs. {p['visitante']}"),
+                        use_container_width=True)
+    if mensaje.get("grafico"):
+        g = mensaje["grafico"]
+        st.altair_chart(graficos.grafico_barras_ordenadas(g["datos"], g["etiqueta"], g["valor"], g["valor"],
+                                                          g["titulo"]), use_container_width=True)
+    if mensaje.get("tabla") is not None and not mensaje["tabla"].empty:
+        st.dataframe(mensaje["tabla"], hide_index=True, use_container_width=True)
+    if mensaje.get("fuente"):
+        st.caption(mensaje["fuente"])
+
+
 def pagina_asistente():
     st.markdown(encabezado("Asistente IA Premier League",
-                           f"Pregunta sobre los partidos de la temporada {temporada}"),
+                           "Chatbot de análisis: estadísticas, próximos partidos y predicciones"),
                 unsafe_allow_html=True)
-    st.caption("Asistente basado en reglas: reconoce equipos y palabras clave y busca la respuesta "
-               "en los datos del proyecto. No usa un modelo de lenguaje externo ni internet, y solo "
-               "responde sobre la temporada elegida en la barra lateral.")
+    interprete = crear_interprete(leer_clave(st.secrets))
+    modo = ("Además hay un modelo de lenguaje conectado que solo ayuda a interpretar las preguntas que las "
+            "reglas no entienden." if interprete else "No usa un modelo de lenguaje externo ni internet.")
+    st.caption("Chatbot híbrido: reconoce la intención de la pregunta con reglas y palabras clave y busca la "
+               "respuesta en los datos del proyecto, el calendario y el modelo predictivo. Nunca inventa "
+               f"cifras. {modo} Si no nombras una temporada, usa la de la barra lateral ({temporada}).")
 
     if "chat" not in st.session_state:
         st.session_state["chat"] = []
+    memoria = st.session_state.setdefault("memoria_chat", {})
 
     st.markdown("**Prueba con un ejemplo:**")
     pregunta = None
     columnas = st.columns(3)
-    for indice, ejemplo in enumerate(EJEMPLOS[:3]):
-        if columnas[indice].button(ejemplo, key=f"ejemplo_{indice}", use_container_width=True):
+    for indice, ejemplo in enumerate(EJEMPLOS_CHAT):
+        if columnas[indice % 3].button(ejemplo, key=f"ejemplo_{indice}", use_container_width=True):
             pregunta = ejemplo
 
-    escrita = st.chat_input("Escribe tu pregunta, por ejemplo: ¿cuántos goles marcó el Arsenal?")
+    escrita = st.chat_input("Escribe tu pregunta, por ejemplo: ¿qué probabilidades tiene el Arsenal?")
     if escrita:
         pregunta = escrita
 
     if pregunta:
-        resultado = responder(pregunta, partidos_temporada, temporada)
+        contexto = {"partidos": partidos, "estadisticas": estadisticas, "temporada": temporada,
+                    "servicio_modelo": obtener_modelo, "evaluacion": evaluacion_modelo,
+                    "memoria": memoria, "interprete": interprete}
+        with st.spinner("Buscando en los datos..."):
+            resultado = responder_chat(pregunta, contexto)
         st.session_state["chat"].append({"rol": "user", "texto": pregunta})
-        st.session_state["chat"].append({"rol": "assistant", "texto": resultado["texto"],
-                                         "tabla": resultado["tabla"], "temporada": temporada})
+        st.session_state["chat"].append(dict(resultado, rol="assistant"))
 
     for mensaje in st.session_state["chat"]:
         with st.chat_message(mensaje["rol"]):
-            st.markdown(mensaje["texto"])
-            if mensaje.get("tabla") is not None and not mensaje["tabla"].empty:
-                st.dataframe(mensaje["tabla"], hide_index=True, use_container_width=True)
             if mensaje["rol"] == "assistant":
-                st.caption(f"Temporada consultada: {mensaje['temporada']}")
+                mostrar_respuesta(mensaje)
+            else:
+                st.markdown(mensaje["texto"])
 
     if st.session_state["chat"] and st.button("Borrar conversación"):
         st.session_state["chat"] = []
+        st.session_state["memoria_chat"] = {}
         st.rerun()
 
 
@@ -525,6 +646,7 @@ PAGINAS = {
     "Goleadores y Asistencias": pagina_jugadores,
     "Partidos": pagina_partidos,
     "Detector de sorpresas": lambda: secciones.pagina_sorpresas(partidos_temporada, temporada),
+    "Analizador predictivo": lambda: pagina_prediccion(partidos, temporada, obtener_modelo, evaluacion_modelo),
     "Asistente IA": pagina_asistente,
     "Curiosidades": pagina_curiosidades,
 }

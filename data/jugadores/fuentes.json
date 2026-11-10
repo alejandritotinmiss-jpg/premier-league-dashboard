@@ -60,6 +60,32 @@
         "fuente": "ESPN",
         "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2024"
       }
+    },
+    "2025/26": {
+      "completo": true,
+      "nota": "",
+      "fecha_consulta": "2026-11-10",
+      "goleadores": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2025"
+      },
+      "asistencias": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2025"
+      }
+    },
+    "2026/27": {
+      "completo": false,
+      "nota": "Temporada en curso: tablas de ESPN consultadas el 10/11/2026, con 10 jornadas jugadas. Los datos de jugadores no se actualizan automáticamente, así que pueden estar atrasados respecto a los partidos.",
+      "fecha_consulta": "2026-11-10",
+      "goleadores": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2026"
+      },
+      "asistencias": {
+        "fuente": "ESPN",
+        "url": "https://www.espn.co.uk/football/stats/_/league/ENG.1/season/2026"
+      }
     }
   }
 }

@@ -37,7 +37,7 @@ RELACIONES = [
 def preparar_tabla(estadisticas, condicion="Total", temporada=None):
     """Equipo-temporada de una condición, con las columnas por partido que faltan.
 
-    temporada=None usa las cinco temporadas (100 equipo-temporada).
+    temporada=None usa todas las filas que reciba (la app le pasa las temporadas completas).
     """
     tabla = estadisticas[estadisticas["Condicion"] == condicion].copy()
     if temporada is not None:

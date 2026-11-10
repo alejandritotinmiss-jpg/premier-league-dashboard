@@ -8,7 +8,7 @@ from html import escape
 
 import streamlit as st
 
-from src.equipos import insignia
+from src.equipos import insignia, nombre_completo
 
 MORADO_OSCURO = "#37003c"
 MORADO = "#7c3aed"
@@ -76,6 +76,64 @@ CSS = f"""
 .tarjeta.destacada .titulo, .tarjeta.destacada .valor, .tarjeta.destacada .detalle {{
     color: #ffffff;
 }}
+.partido {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    background: linear-gradient(120deg, {MORADO_OSCURO} 0%, #5b1a8a 60%, {MORADO} 100%);
+    color: #ffffff;
+    border-radius: 14px;
+    padding: 1.2rem 1rem;
+    margin-bottom: 1rem;
+}}
+.partido .equipo {{
+    flex: 1;
+    text-align: center;
+}}
+.partido .equipo img {{
+    width: 76px;
+    height: 76px;
+}}
+.partido .equipo .nombre {{
+    font-weight: 700;
+    font-size: 1.15rem;
+    margin-top: 0.3rem;
+}}
+.partido .equipo .rol {{
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}}
+.partido .centro {{
+    text-align: center;
+    min-width: 7rem;
+}}
+.partido .centro .vs {{
+    font-size: 1.9rem;
+    font-weight: 800;
+}}
+.partido .centro .fecha {{
+    font-size: 0.9rem;
+}}
+.partido .centro .estado {{
+    display: inline-block;
+    margin-top: 0.35rem;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}}
+@media (max-width: 640px) {{
+    .partido .equipo img {{ width: 52px; height: 52px; }}
+    .partido .equipo .nombre {{ font-size: 0.95rem; }}
+    .partido .centro {{ min-width: 5rem; }}
+    .partido .centro .vs {{ font-size: 1.4rem; }}
+}}
 section[data-testid="stSidebar"] .marca-lateral {{
     font-weight: 800;
     color: {MORADO_OSCURO};
@@ -103,6 +161,17 @@ def tarjeta(titulo, valor, detalle="", destacada=False):
     return (f'<div class="{clase}"><div class="titulo">{escape(str(titulo))}</div>'
             f'<div class="valor">{escape(str(valor))}</div>'
             f'<div class="detalle">{escape(str(detalle))}</div></div>')
+
+
+def tarjeta_partido(local, visitante, fecha, estado):
+    """HTML de la tarjeta de un partido: insignias, nombres, VS, fecha y estado."""
+    def bloque(equipo, rol):
+        return (f'<div class="equipo"><img src="{insignia(equipo)}" alt="Insignia de {escape(equipo)}">'
+                f'<div class="nombre">{escape(nombre_completo(equipo))}</div>'
+                f'<div class="rol">{rol}</div></div>')
+    return (f'<div class="partido">{bloque(local, "Local")}'
+            f'<div class="centro"><div class="vs">VS</div><div class="fecha">{escape(fecha)}</div>'
+            f'<div class="estado">{escape(estado)}</div></div>{bloque(visitante, "Visitante")}</div>')
 
 
 def con_insignia(tabla, columna_equipo="Equipo"):

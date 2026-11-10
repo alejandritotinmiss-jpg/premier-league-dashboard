@@ -1,4 +1,4 @@
-"""Datos de los 27 equipos de las cinco temporadas: nombres, abreviaturas e insignias."""
+"""Datos de los equipos de todas las temporadas: nombres, abreviaturas e insignias."""
 
 import base64
 import unicodedata
@@ -14,10 +14,12 @@ EQUIPOS = {
                  "alias": ["brighton", "brighton and hove albion", "brighton & hove albion"]},
     "Burnley": {"nombre": "Burnley", "abreviatura": "BUR", "alias": ["burnley"]},
     "Chelsea": {"nombre": "Chelsea", "abreviatura": "CHE", "alias": ["chelsea"]},
+    "Coventry": {"nombre": "Coventry City", "abreviatura": "COV", "alias": ["coventry", "coventry city"]},
     "Crystal Palace": {"nombre": "Crystal Palace", "abreviatura": "CRY",
                        "alias": ["crystal palace", "palace"]},
     "Everton": {"nombre": "Everton", "abreviatura": "EVE", "alias": ["everton"]},
     "Fulham": {"nombre": "Fulham", "abreviatura": "FUL", "alias": ["fulham"]},
+    "Hull": {"nombre": "Hull City", "abreviatura": "HUL", "alias": ["hull", "hull city"]},
     "Ipswich": {"nombre": "Ipswich Town", "abreviatura": "IPS", "alias": ["ipswich", "ipswich town"]},
     "Leeds": {"nombre": "Leeds United", "abreviatura": "LEE", "alias": ["leeds", "leeds united"]},
     "Leicester": {"nombre": "Leicester City", "abreviatura": "LEI",
@@ -36,6 +38,7 @@ EQUIPOS = {
     "Sheffield United": {"nombre": "Sheffield United", "abreviatura": "SHU",
                          "alias": ["sheffield united", "sheffield"]},
     "Southampton": {"nombre": "Southampton", "abreviatura": "SOU", "alias": ["southampton"]},
+    "Sunderland": {"nombre": "Sunderland", "abreviatura": "SUN", "alias": ["sunderland"]},
     "Tottenham": {"nombre": "Tottenham Hotspur", "abreviatura": "TOT",
                   "alias": ["tottenham", "tottenham hotspur", "spurs"]},
     "Watford": {"nombre": "Watford", "abreviatura": "WAT", "alias": ["watford"]},

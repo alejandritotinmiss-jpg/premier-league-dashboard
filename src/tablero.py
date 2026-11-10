@@ -24,8 +24,34 @@ def temporadas_disponibles(estadisticas):
     return sorted(estadisticas["Temporada"].unique())
 
 
+def temporadas_completas(estadisticas):
+    """Temporadas terminadas: todos sus equipos jugaron los 38 partidos."""
+    total = estadisticas[estadisticas["Condicion"] == "Total"]
+    minimo_partidos = total.groupby("Temporada")["PJ"].min()
+    return sorted(minimo_partidos[minimo_partidos == 38].index)
+
+
+def solo_completas(estadisticas):
+    """Filas de las temporadas terminadas.
+
+    Los análisis que juntan varias temporadas usan solo las terminadas: los promedios
+    de una temporada en curso salen de pocos partidos y no son comparables.
+    """
+    return estadisticas[estadisticas["Temporada"].isin(temporadas_completas(estadisticas))]
+
+
+def esta_en_curso(estadisticas, temporada):
+    """True si la temporada todavía no tiene los 38 partidos de cada equipo."""
+    return temporada not in temporadas_completas(estadisticas)
+
+
+def texto_temporadas_completas(estadisticas):
+    """Por ejemplo: 'las 6 temporadas completas'."""
+    return f"las {len(temporadas_completas(estadisticas))} temporadas completas"
+
+
 def equipos_de_temporada(estadisticas, temporada):
-    """Los 20 equipos de una temporada en orden alfabético."""
+    """Los equipos de una temporada en orden alfabético."""
     tabla = estadisticas[estadisticas["Temporada"] == temporada]
     return sorted(tabla["Equipo"].unique())
 
@@ -74,17 +100,24 @@ def evolucion_puntos(equipo_partido, temporada, equipos):
     columnas = ["Equipo", "NumeroPartido", "PuntosAcumulados", "Rival", "Condicion",
                 "GolesFavor", "GolesContra", "Resultado"]
     tabla = equipo_partido.loc[filtro, columnas].copy()
+    if tabla.empty:
+        return tabla.assign(Marcador=[], EsUltimo=[])
     tabla["Marcador"] = tabla["GolesFavor"].astype(int).astype(str) + "-" + \
         tabla["GolesContra"].astype(int).astype(str)
+    # Marca el último partido jugado de cada equipo (38 en una temporada completa, menos si está en curso).
+    tabla["EsUltimo"] = tabla["NumeroPartido"] == tabla.groupby("Equipo")["NumeroPartido"].transform("max")
     return tabla.sort_values(["Equipo", "NumeroPartido"]).reset_index(drop=True)
 
 
 def datos_dispersion(estadisticas, temporada, condicion, columna_metrica,
                      todas_las_temporadas, seleccionados):
     """Datos del gráfico de una métrica frente a los puntos por partido."""
-    tabla = estadisticas[estadisticas["Condicion"] == condicion]
-    if not todas_las_temporadas:
-        tabla = tabla[tabla["Temporada"] == temporada]
+    # Primero se eligen las temporadas (solo_completas necesita las filas "Total") y luego la condición.
+    if todas_las_temporadas:
+        tabla = solo_completas(estadisticas)
+    else:
+        tabla = estadisticas[estadisticas["Temporada"] == temporada]
+    tabla = tabla[tabla["Condicion"] == condicion]
     tabla = tabla[["Equipo", "Temporada", columna_metrica, "PuntosPorPartido"]].copy()
     tabla = tabla.rename(columns={columna_metrica: "Valor"})
     tabla["Seleccionado"] = (tabla["Temporada"] == temporada) & tabla["Equipo"].isin(seleccionados)
@@ -115,6 +148,16 @@ def ventaja_local_por_temporada(estadisticas):
     return resumen.reset_index()
 
 
+def temporadas_con_mas_victorias_visitantes(equipo_partido, temporadas):
+    """Temporadas (de la lista dada) en las que los visitantes ganaron más partidos que los locales."""
+    encontradas = []
+    for temporada in temporadas:
+        conteo = resultados_temporada(equipo_partido, temporada)
+        if conteo["Gana el visitante"] > conteo["Gana el local"]:
+            encontradas.append(temporada)
+    return encontradas
+
+
 def resultados_temporada(equipo_partido, temporada):
     """Cuenta victorias locales, empates y victorias visitantes de una temporada."""
     filtro = (equipo_partido["Temporada"] == temporada) & (equipo_partido["Condicion"] == "Local")
@@ -127,7 +170,11 @@ def resultados_temporada(equipo_partido, temporada):
 
 
 def equipos_mejor_de_local(estadisticas):
-    """Cuántos equipo-temporada sumaron más puntos de local, el total y la diferencia media."""
+    """Cuántos equipo-temporada sumaron más puntos de local, el total y la diferencia media.
+
+    Solo cuenta las temporadas completas.
+    """
+    estadisticas = solo_completas(estadisticas)
     indice = ["Temporada", "Equipo"]
     local = estadisticas[estadisticas["Condicion"] == "Local"].set_index(indice)["PuntosPorPartido"]
     visitante = estadisticas[estadisticas["Condicion"] == "Visitante"].set_index(indice)["PuntosPorPartido"]
@@ -138,9 +185,12 @@ def equipos_mejor_de_local(estadisticas):
 def correlacion_con_puntos(estadisticas, temporada, condicion, columna_metrica,
                            todas_las_temporadas):
     """Correlación de una métrica con los puntos por partido. Devuelve (r, n)."""
-    tabla = estadisticas[estadisticas["Condicion"] == condicion]
-    if not todas_las_temporadas:
-        tabla = tabla[tabla["Temporada"] == temporada]
+    # Primero se eligen las temporadas (solo_completas necesita las filas "Total") y luego la condición.
+    if todas_las_temporadas:
+        tabla = solo_completas(estadisticas)
+    else:
+        tabla = estadisticas[estadisticas["Temporada"] == temporada]
+    tabla = tabla[tabla["Condicion"] == condicion]
     return correlacion(tabla[columna_metrica], tabla["PuntosPorPartido"]), len(tabla)
 
 

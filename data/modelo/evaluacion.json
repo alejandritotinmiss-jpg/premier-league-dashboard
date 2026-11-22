@@ -17,8 +17,8 @@
   "log_loss_en_validacion_por_c": {
     "0.01": 0.9903650783197728,
     "0.1": 0.9900364751461648,
-    "1.0": 0.9906427022714005,
-    "10.0": 0.9908641639941762
+    "1.0": 0.9906427022714009,
+    "10.0": 0.990864163994177
   },
   "validacion": {
     "entrenamiento": {
@@ -144,7 +144,7 @@
       "accuracy": 0.48125,
       "balanced_accuracy": 0.42665089024115394,
       "f1_macro": 0.3611411165327804,
-      "log_loss": 1.0427531002007717,
+      "log_loss": 1.0427531002007713,
       "brier": 0.6260503720049715,
       "por_clase": {
         "Victoria local": {
@@ -253,8 +253,8 @@
         "accuracy": 0.5763157894736842,
         "balanced_accuracy": 0.4775377468060395,
         "f1_macro": 0.4216089254257193,
-        "log_loss": 0.9445070835535331,
-        "brier": 0.5561673479408766,
+        "log_loss": 0.9445070835535363,
+        "brier": 0.5561673479408782,
         "por_clase": {
           "Victoria local": {
             "precision": 0.5975103734439834,
@@ -471,8 +471,8 @@
         "accuracy": 0.48947368421052634,
         "balanced_accuracy": 0.43383149231102447,
         "f1_macro": 0.36650378195870514,
-        "log_loss": 1.0346958649906968,
-        "brier": 0.6213948656830685,
+        "log_loss": 1.0346958649906965,
+        "brier": 0.6213948656830683,
         "por_clase": {
           "Victoria local": {
             "precision": 0.5204918032786885,
@@ -580,8 +580,8 @@
         "accuracy": 0.44,
         "balanced_accuracy": 0.3886328725038402,
         "f1_macro": 0.3287749287749288,
-        "log_loss": 1.0651038936101618,
-        "brier": 0.6391337880810322,
+        "log_loss": 1.0651038936101604,
+        "brier": 0.6391337880810317,
         "por_clase": {
           "Victoria local": {
             "precision": 0.45454545454545453,
@@ -678,31 +678,31 @@
     {
       "tramo": "0-20 %",
       "casos": 749,
-      "probabilidad_media": 0.13983374577140345,
+      "probabilidad_media": 0.13983374577140592,
       "frecuencia_real": 0.17757009345794392
     },
     {
       "tramo": "20-40 %",
       "casos": 1837,
-      "probabilidad_media": 0.26967485405922603,
+      "probabilidad_media": 0.2696748540592264,
       "frecuencia_real": 0.2721829069134458
     },
     {
       "tramo": "40-60 %",
       "casos": 742,
-      "probabilidad_media": 0.49478802029407315,
+      "probabilidad_media": 0.49478802029407226,
       "frecuencia_real": 0.46765498652291104
     },
     {
       "tramo": "60-80 %",
       "casos": 352,
-      "probabilidad_media": 0.6795534561159742,
+      "probabilidad_media": 0.6795534561159692,
       "frecuencia_real": 0.6392045454545454
     },
     {
       "tramo": "80-100 %",
       "casos": 40,
-      "probabilidad_media": 0.8384072474848832,
+      "probabilidad_media": 0.8384072474848818,
       "frecuencia_real": 0.875
     }
   ],

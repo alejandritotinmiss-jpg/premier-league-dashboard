@@ -278,14 +278,25 @@ def test_maximos_goleadores_y_asistentes(base):
     assert resultado["tipo"] == "ranking"                       # con "equipo" se habla de equipos
 
 
+def enfrentamientos_de(partidos, equipo_a, equipo_b):
+    return partidos[((partidos["HomeTeam"] == equipo_a) & (partidos["AwayTeam"] == equipo_b)) |
+                    ((partidos["HomeTeam"] == equipo_b) & (partidos["AwayTeam"] == equipo_a))]
+
+
 def test_historial_entre_equipos_de_todas_las_temporadas(base):
+    # Con la palabra "historial" se buscan todas las temporadas, se hayan enfrentado o no en la elegida.
     contexto = contexto_nuevo(base, temporada="2026/27")
-    resultado = responder_chat("Manchester United contra Liverpool", contexto)
-    partidos = base["partidos"]
-    entre = partidos[((partidos["HomeTeam"] == "Man United") & (partidos["AwayTeam"] == "Liverpool")) |
-                     ((partidos["HomeTeam"] == "Liverpool") & (partidos["AwayTeam"] == "Man United"))]
+    resultado = responder_chat("historial Manchester United Liverpool", contexto)
+    entre = enfrentamientos_de(base["partidos"], "Man United", "Liverpool")
     assert resultado["tipo"] == "partidos" and len(resultado["tabla"]) == len(entre)
     assert f"**{len(entre)}** veces" in resultado["texto"]
+    # Sin "historial": si no se enfrentaron en la temporada elegida, también se buscan todas.
+    # (Sunderland no jugó 2020/21, así que ese año seguro no se enfrentaron.)
+    contexto = contexto_nuevo(base, temporada="2020/21")
+    resultado = responder_chat("Arsenal contra Sunderland", contexto)
+    entre = enfrentamientos_de(base["partidos"], "Arsenal", "Sunderland")
+    assert resultado["tipo"] == "partidos" and len(resultado["tabla"]) == len(entre) > 0
+    assert "En 2020/21 no se enfrentaron" in resultado["texto"]
 
 
 def test_campeon_descenso_partidos_y_ventaja_de_local(base):

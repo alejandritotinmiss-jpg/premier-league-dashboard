@@ -778,7 +778,10 @@ def responder_historial(contexto, equipos, temporada_elegida):
     ultimo = tabla.iloc[-1]
     aviso = ""
     if ultimo["Temporada"] != temporada_elegida:
-        aviso = f"En {temporada_elegida} todavía no se han enfrentado. "
+        if temporada_en_curso(contexto, temporada_elegida):
+            aviso = f"En {temporada_elegida} todavía no se han enfrentado. "
+        else:
+            aviso = f"En {temporada_elegida} no se enfrentaron. "
     texto = (f"{aviso}Entre {temporadas[0]} y {temporadas[-1]} jugaron **{len(tabla)}** "
              f"{plural(len(tabla), 'vez', 'veces')}: {equipo_a} ganó **{gana_a}**, {equipo_b} ganó **{gana_b}** "
              f"y empataron **{empates}**. El último fue el {fecha_texto(ultimo['Date'])}: "

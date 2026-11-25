@@ -85,7 +85,7 @@
       "tiros_imposibles": 0
     },
     "2026/27": {
-      "filas": 100,
+      "filas": 110,
       "completa": false,
       "equipos": 20,
       "columnas_correctas": true,
@@ -115,6 +115,6 @@
       "temporada": "2021/22"
     }
   ],
-  "filas_finales": 2380,
-  "fecha_ultimo_partido": "2026-11-08"
+  "filas_finales": 2390,
+  "fecha_ultimo_partido": "2026-11-23"
 }

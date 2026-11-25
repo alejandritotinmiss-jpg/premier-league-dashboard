@@ -1,11 +1,11 @@
 {
-  "ultima_actualizacion": "2026-11-22 14:42 UTC",
+  "ultima_actualizacion": "2026-11-25 05:29 UTC",
   "temporada": "2026/27",
-  "partidos_de_la_temporada": 100,
-  "partidos_nuevos": 0,
+  "partidos_de_la_temporada": 110,
+  "partidos_nuevos": 10,
   "celdas_corregidas": 0,
-  "fecha_ultimo_partido": "2026-11-08",
-  "partidos_totales": 2380,
+  "fecha_ultimo_partido": "2026-11-23",
+  "partidos_totales": 2390,
   "fuente_resultados": "https://www.football-data.co.uk/mmz4281/2627/E0.csv",
   "fuente_calendario": "https://fixturedownload.com/feed/json/epl-2026",
   "metodo": "automático (GitHub Actions)"
